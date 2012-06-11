@@ -1,0 +1,293 @@
+include 'Config.f95'
+include 'SimOperations.f95'
+include 'jacobi.f'
+
+
+program ReadSim
+  use Config
+  use SimOperations
+  implicit none
+        
+
+    integer :: FlagSfr, FlagFeedback, Nall(6), FlagAge, FlagCooling 
+    integer ::FlagMetals, NallHW(6), FlagEntrICs
+    real,allocatable :: pos(:,:),vel(:,:), group_pos(:,:), group_vel(:,:)
+    real(8) ::massarr(6), time, BoxSize,OmegaLambda,HubbleParam,Omega0, Redshift
+    integer :: npart(6), offset_pos(1)
+    integer :: i, NumFiles, j, ngroups, k, ntot, group_offset, group_size,nrot
+    integer(4), allocatable :: ID(:)
+    
+    integer,allocatable :: grouplen(:), groupoffset(:), ids(:),group_IDS(:)
+
+    character(len=50) :: group_folder
+    real              :: IT(3,3), eigval(3),centre_of_density(3),c_o_m(3)
+    real              ::eigvec(3,3),axis_ratio_b, axis_ratio_c, bin_size
+    real, allocatable ::pos_r(:,:), r(:), vel_r(:,:)
+    real(8),allocatable   :: dens(:), bin_edges(:), vol(:)
+    
+    
+    ! Read in Simulation File values (only positions, velocities and ID's)  
+      open(unit=10,file=trim(Directory)//trim(sim_file),&
+           &form='UNFORMATTED')
+      
+      read(10) npart, massarr, time, Redshift, FlagSfr, FlagFeedback, Nall, &
+                  & FlagCooling, NumFiles, BoxSize, Omega0, OmegaLambda,&
+                  &HubbleParam,FlagAge, FlagMetals, NallHW, FlagEntrICs
+                                                                                            
+      write(*,*) "Number of particles(1) = ", npart(1)
+      write(*,*) "Number of particles(2) = ", npart(2)
+      write(*,*) "Number of particles(3) = ", npart(3)
+      write(*,*) "Number of particles(4) = ", npart(4)
+      write(*,*) "Number of particles(5) = ", npart(5)
+      write(*,*) "Number of particles(6) = ", npart(6)
+      write(*,*) "Time of snapshot: ", time
+      write(*,*) "Redshift of snapshot: ", Redshift
+      write(*,*) "BoxSize of Sim: ", BoxSize
+      
+      allocate(pos(3,npart(2)),vel(3,npart(2)),ID(npart(2)))
+      read(10)
+      read(10)
+                
+      
+      read(10) (ID(i), i=1,npart(2))
+      write(*,*) "Read Particle ID's"
+      rewind(10)
+      read(10)
+      read(10) (pos(1,ID(i)),pos(2,ID(i)),pos(3,ID(i)), i=1,npart(2))
+      write(*,*) "Read Positions"
+      read(10) (vel(1,ID(i)),vel(2,ID(i)),vel(3,ID(i)), i=1,npart(2))
+      write(*,*) "Read Velocities"
+      close(10)
+      
+      deallocate(ID)
+    
+    ! Read in groups from FoF finder
+      
+      if(find_groups)then
+        open(1,file=trim(Directory)//trim(fof_file),&
+                  &status='unknown',form='unformatted')
+                  
+        read(1) ngroups                         ! Total number of FOF groups
+        
+        write(*,'(a,i6,a)') 'Reading ',ngroups,' groups...'
+        
+        allocate(grouplen(ngroups),groupoffset(ngroups))
+        
+        read(1) (grouplen(i),i=1,ngroups)      ! Length of each FOF group
+        write(*,*) 'Read group lengths'
+        read(1) (groupoffset(i),i=1,ngroups)  ! Offset in the pos.ids file
+        write(*,*) 'Read group offsets'
+        !read(1) (nsubgroups(i),i=1,ngroups) ! Number of subgroups -- ignore
+        !write(*,*) 'Read number of subgroups'
+        close(1)
+        
+        open(1,file=trim(Directory)//trim(ids_file),&
+                  &status='unknown',form='unformatted')
+        read(1) ntot                     ! Total number of particles in FOF groups
+        allocate(ids(ntot))
+        read(1) (ids(i),i=1,ntot)  ! Particle IDs
+        close(1)    
+      end if
+    
+    ! Write out positions to an ascii file for python (stupid)
+      open(unit=11, file=trim(DIRECTORY)//trim(pos_file))  
+       do i=1,npart(2)
+            write(11,'(3es20.8)') pos(1,i), pos(2,i), pos(3,i)
+       end do
+      close(11)
+
+      
+    ! Filter the positions for reduced output.  
+      if(pos_filter)then
+        open(unit=12, file=trim(Directory)//trim(slice_file))
+          j = 0
+          do i=1,npart(2)
+              if(pos(filter_coord,i).GT.min_filt.AND.&
+              &pos(filter_coord,i).LT.max_filt)then
+                  write(12,'(3es20.8)') pos(1,i), pos(2,i), pos(3,i)
+                  j = j+1
+              end if
+          end do
+          write(*,*) "slice contains ", j ,"objects"
+      end if
+    
+    ! Locate Largest Group/Halo and save properties.
+      if(find_groups)then
+        do k = 1,number_of_groups
+          write(*,*) "Calculating characteristics of group", k
+          offset_pos = maxloc(grouplen)
+          group_offset = groupoffset(offset_pos(1))
+          group_size = maxval(grouplen)
+          write(*,*) "Group Size: ", group_size
+
+          allocate(group_pos(3,group_size),group_IDS(group_size))
+          allocate(group_vel(3,group_size))
+
+          
+          write(group_folder,"(A23,I1,A1)") trim(group_dir), k,'/'
+          write(*,*)group_folder
+          call system('mkdir '//trim(Directory)//trim(group_folder))
+          
+          write(*,*) "Specifying group particles"
+          do i=1,maxval(grouplen)
+            group_IDS(i) = ids(group_offset+i)
+            
+            
+            group_pos(:,i) = pos(:,group_IDS(i))
+            
+            group_vel(:,i) = vel(:,group_IDS(i))
+               
+          end do
+          
+          write(*,*) "Writing out groups properties"
+          
+          
+          
+          open(1,file=trim(Directory)//trim(group_folder)//trim(pos_file))
+          open(2,file=trim(Directory)//trim(group_folder)//trim(vel_file))
+          do i=1,group_size
+            write(1,"(3es20.8)") group_pos(:,i)
+            write(2,"(3es20.8)") group_vel(:,i)
+          end do
+          close(1)
+          close(2)
+          
+          grouplen(offset_pos(1)) = -1
+        
+        
+        
+          if(center_group)then
+            centre_of_density = group_pos(:,1)
+            
+            write(*,"(A30,3F5.8,A1)") "Centre of Density of group = (",&
+                                        &centre_of_density,")"
+            c_o_m(:) = 0.000
+            do i = 1,group_size
+              c_o_m(1) = c_o_m(1) + group_pos(1,i)
+              c_o_m(2) = c_o_m(2) + group_pos(2,i)
+              c_o_m(3) = c_o_m(3) + group_pos(3,i)
+            end do
+            c_o_m(:) = c_o_m(:)/real(group_size)
+            write(*,"(A27,3F5.8,A1)") "Centre of Mass of group = (", c_o_m,")"
+            
+            ! Re-centre the group around the centre of mass
+            call ReCentre(group_pos, real(BoxSize),c_o_m)
+            write(*,*) "Group Re-centred"
+                          
+            open(1,file=trim(Directory)//trim(group_folder)//trim(pos_file_c))
+              do i=1,group_size
+                write(1,"(3es20.8)") group_pos(:,i)
+              end do
+            close(1)
+            
+            ! Calculate the Moment of Inertia tensor
+            IT = Inertia(real(massarr(2)),group_pos)
+            write(*,*) "Moment of Inertia calculated"
+          
+             write(*,*) "Moment of Inertia tensor:"
+             do i=1,3
+                write(*,*) IT(i,:)
+             end do
+             
+            ! Diagonalize Inertia Tensor
+              call jacobi(IT,3,3,eigval,eigvec,nrot)
+              write(*,*) "Moment of Inertia tensor diagonalized"
+            
+            ! Re-order the eigs
+              call EigOrder(eigval,eigvec)
+              
+            ! Return the ratios of axes
+              axis_ratio_b = sqrt(eigval(2)/eigval(1))
+              axis_ratio_c = sqrt(eigval(3)/eigval(1))
+              write(*,*) "Ratio of axes lengths b/a = ", axis_ratio_b
+              write(*,*) "Ratio of axes lengths c/a = ", axis_ratio_c
+              
+            ! Project data into co-ordinates defined by
+                ! xbar = eigvec(1)*(x,y,z)
+                ! ybar = eigvec(2)*(x,y,z)
+                ! zbar = eigvec(3)*(x,y,z)
+                  
+              do i=1,group_size
+                group_pos(:,i) = matmul(eigvec,group_pos(:,i))
+              end do
+              
+              
+              open(1,file=trim(Directory)//trim(group_folder)//trim(pos_file_p))
+              do i=1,group_size
+                write(1,"(3es20.8)") group_pos(:,i)
+              end do
+              close(1)
+              
+            ! Rotate data as seen fit
+              if (rotate)then
+                allocate(pos_r(3,group_size))
+                
+                call GenRotate(group_pos,u,theta,pos_r)
+                open(1,file=trim(Directory)//trim(group_folder)//&
+                                  &trim(pos_file_r))
+                do i=1,group_size
+                  write(1,"(3es20.8)") pos_r(:,i)
+                end do
+                close(1)
+                group_pos = pos_r
+                deallocate(pos_r)
+              end if
+              
+            !NOW WE CAN DO STUFF IN THE UBER CO-ORDS!!
+              
+              ! Calculate radii from c_o_m/c_o_d (to make density profiles)
+                allocate(r(group_size))
+                do i=1,group_size
+                  r(i) = sqrt(group_pos(1,i)**2 + group_pos(2,i)**2&
+                              &+ group_pos(3,i)**2)
+                end do
+                
+              ! Calculate Density Profile.
+                allocate(dens(bins),bin_edges(bins+1))
+                call LogBins(r,bins,min_bin,dens,bin_edges)
+                dens = dens*massarr(2)
+                
+                allocate(vol(bins))
+                do i=1,bins
+                  vol(i) = (4.0*3.14159*(bin_edges(i+1)**3-bin_edges(i)**3))/3.0
+                end do
+                
+                dens(:) = dens(:)/vol(:)
+                open(1,file=trim(Directory)//trim(group_folder)//&
+                                  &trim(dens_file))
+                do i=1,bins
+                  write(1,"(2es20.8)") bin_edges(i+1), dens(i)
+                end do
+                close(1)
+                write(*,*)"Calculated spherically symmetric density profile"
+                
+                
+              ! Calculate velocity dispersion on the three principle axes.
+                
+                ! First rotate the velocities to the new co-ordinate frame.
+                  do i=1,group_size
+                    group_vel(:,i) = matmul(eigvec,group_vel(:,i))
+                  end do
+                  allocate(vel_r(3,group_size))
+                  call GenRotate(group_vel,u,theta,vel_r)
+                  group_vel = vel_r
+                  deallocate(vel_r)
+                  open(1,file=trim(Directory)//trim(group_folder)//&
+                                  &trim(vel_file_r))
+                  do i=1,group_size
+                    write(1,"(3es20.8)") group_vel(:,i)
+                  end do
+                  close(1)
+
+                
+                
+          
+          end if
+          
+        end do  
+      end if
+
+    
+end program
+     
+

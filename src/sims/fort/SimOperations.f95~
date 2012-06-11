@@ -1,0 +1,11 @@
+module SimOperations                                             
+  implicit none
+  
+  subroutine PosFilter(filter_coord, coord_2,coord_3,min_filt,max_filt)
+    implicit none
+    
+    real :: filter_coord(:), coord_2(:), coord_3(:)
+    real :: min_filt, max_filt
+    integer :: i,j
+    
+    
