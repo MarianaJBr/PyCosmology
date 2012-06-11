@@ -122,6 +122,8 @@ class ShapeletOperations_DMH(object):
     def Centroid(self):
         """
         Finds the centroid of a group defined by Fluke et. al.
+        
+        Hmm..
         """
         
         self.centroid = []
