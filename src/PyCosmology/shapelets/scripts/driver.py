@@ -5,12 +5,12 @@ Created on Jun 6, 2012
 '''
 
 if __name__ == '__main__':
-    import shapelets
+    from PyCosmology.shapelets.shapelets import ShapeletOperations_DMH as shops
     from config import config
     import time
     
     initial = time.time()
-    sh = shapelets.ShapeletOperations_DMH(config.sim_file,config.groups_file,config.ids_file,config.n_groups,config.reverse)
+    sh = shops(config.sim_file,config.groups_file,config.ids_file,config.n_groups,config.reverse)
     
     sub_initial = time.time()
     sh.find_coeffs(config.bins)

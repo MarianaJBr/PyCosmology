@@ -19,8 +19,8 @@ def generate_version_py():
         
 generate_version_py()
 
-shapelets = Extension('shapelets.fort.shapelets',['shapelets/fort/find_coeffs.f90'],extra_f90_compile_args=['-Wtabs'],f2py_options=['--quiet'])
-read_sim = Extension('sims.fort.read_sim',['sims/fort/ReadSim.f90'],extra_f90_compile_args=['-Wtabs'],f2py_options=['--quiet'])
+shapelets = Extension('PyCosmology.shapelets.fort.sh',['PyCosmology/shapelets/fort/find_coeffs.f90'],extra_f90_compile_args=['-Wtabs'],f2py_options=['--quiet'])
+read_sim = Extension('PyCosmology.sims.fort.read_sim',['PyCosmology/sims/fort/ReadSim.f90'],extra_f90_compile_args=['-Wtabs'],f2py_options=['--quiet'])
 
 if __name__=="__main__":
     
@@ -31,5 +31,5 @@ if __name__=="__main__":
           description = 'Bits-and-bobs cosmology project.',
           url = 'doesnt.have.one.yet.com',
           ext_modules = [shapelets,read_sim],
-          packages = ['shapelets','sims','structure']
+          packages = ['PyCosmology','PyCosmology.shapelets','PyCosmology.sims','PyCosmology.structure','PyCosmology.shapelets.fort','PyCosmology.sims.fort']
     )
