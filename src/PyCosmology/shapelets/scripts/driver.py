@@ -17,11 +17,6 @@ if __name__ == '__main__':
     sub_final = time.time()
     print "  Coefficient finding time: ", sub_final - sub_initial
     
-    #sub_initial = time.time()
-    #sh.reconstruct(config.bins)
-    #sub_final = time.time()
-    #print "  Reconstruction time: ", sub_final - sub_initial
-    
     sub_initial = time.time()
     sh.zeroth_moment()
     sub_final = time.time()
@@ -31,6 +26,43 @@ if __name__ == '__main__':
     sh.Centroid()
     sub_final = time.time()
     print "  Centroid time: ", sub_final - sub_initial
-    
+
+    sub_initial = time.time()
+    sh.rmsRadius()
+    sub_final = time.time()
+    print "  rms Radius time: ", sub_final - sub_initial
+
+    sub_initial = time.time()
+    sh.InertiaTensor()
+    sub_final = time.time()
+    print "  Moment of Inertia time: ", sub_final - sub_initial
+            
+    if config.reconstruct:
+        sub_initial = time.time()
+        sh.reconstruct(config.bins)
+        sub_final = time.time()
+        print "  Reconstruction time: ", sub_final - sub_initial
+        
+        sub_initial = time.time()
+        sh.DensityPlotCompare(config.smoothing_scale, config.resolution)
+        sub_final = time.time()
+        print "  Density Plotting time: ", sub_final - sub_initial 
+
+        sub_initial = time.time()
+        sh.mserror()
+        sub_final = time.time()
+        print "  Mean Square Error time: ", sub_final - sub_initial
+        
+        sub_initial = time.time()
+        sh.PeakSN()
+        sub_final = time.time()
+        print "  Peak Signal to Noise time: ", sub_final - sub_initial   
+ 
+        
+        sub_initial = time.time()
+        sh.Compare()
+        sub_final = time.time()
+        print "  Comparison time: ", sub_final - sub_initial   
+                          
     final = time.time()
     print "Overall Time Taken: ", final - initial

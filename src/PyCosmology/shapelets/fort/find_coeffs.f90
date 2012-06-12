@@ -92,11 +92,7 @@ module shapelets
   	  		&sqrt(real(i-2)/real(i-1))*bases(i-2)
   	  	end do
   	  	
-  	  	write(*,*) "Basis vector for x = ", x
-  	  	write(*,*) "beta = ", beta
-  	  	do i=1,n+1
-  	  		write(*,*) bases(i)
-  	  	end do 
+
   	  end subroutine
   	  
     
@@ -241,10 +237,6 @@ module shapelets
  	  call cube_ints(x_max,Ng,nmax,Ints)
  
 
- 	  do i=1,nmax+1
- 	      write(*,*) Ints(10,i)
- 	  end do
-
  	  do k=1,nmax+1
  	  	i=1
  	  	j=1
@@ -284,23 +276,34 @@ module shapelets
   	  	real(8), intent(out) :: cube(Ng,Ng,Ng)
   	  	
   	  	integer	:: i,j,k,ii,jj,kk
-  	  	real(8)	:: beta, bases(Ng,nmax+1),x
+  	  	real(8)	:: bases(Ng,nmax+1),x
   	  	
-  	  	beta = bounds(2)/sqrt(2.0d0*Ng)
   	  	
   	  	cube = 0.0d0
   	  	
   	  	do j = 1,Ng
   	  		x = bounds(1)+(j-0.5d0)*2.0*bounds(2)/Ng
-  	  		call basis(x,nmax,beta,bases(j,:))
+  	  		call basis_vector(x,nmax,bases(j,:))
   	  	end do
   	  	
   	  	do k=1,Ng
   	  		do j = 1,Ng
   	  			do i = 1,Ng
   	  				do kk = 1,nmax+1
+  	  					jj=1
+  	  					ii=1
+  	  					if (ii+jj+kk .GT. nmax+1)then
+  	  						exit
+  	  					end if
   	  					do jj = 1,nmax+1
+  	  						ii=1
+  	  						if (ii+jj+kk .GT. nmax+1)then
+  	  							exit
+  	  						end if	
   	  						do ii = 1,nmax+1
+  	  						if (ii+jj+kk .GT. nmax+1)then
+  	  							exit
+  	  						end if
   	  							cube(i,j,k) = cube(i,j,k) + &
   	  								& f(ii,jj,kk)*bases(i,ii)*&
   	  								&bases(j,jj)*bases(k,kk)

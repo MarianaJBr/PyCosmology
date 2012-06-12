@@ -18,3 +18,7 @@ class config(object):
     
     bins = 50
     
+    reconstruct = True
+    smoothing_scale = 5
+    resolution = 300
+    

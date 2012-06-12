@@ -5,9 +5,12 @@ Created on Jun 5, 2012
 '''
 
 from PyCosmology.sims.fort.read_sim import simops
+import PyCosmology.sims.plotting as plotting
 from PyCosmology.shapelets.fort.shapelets import shapelets as fc
 import numpy as np
 from scipy.misc import comb
+import matplotlib.pyplot as plt
+import os, errno
 #import matplotlib
 #matplotlib.use("Qt4Agg")
 #import matplotlib.pyplot as plt
@@ -44,47 +47,89 @@ class ShapeletOperations_DMH(object):
             
             simops.centre(self.groups_pos[i],mode=3)
             simops.rotate(self.groups_pos[i],self.groups_pos[i],[0.0,0.0,0.0],0.0)
+            
+        self.make_directories(sim_file)
 
+    def make_directories(self,filename):
+        """
+        Makes a simple directory structure to store images etc.
+        """
+        self.sim_dir = filename.partition('.')[0]
+        try:
+            os.makedirs(self.sim_dir)
+        except OSError, e:
+            if e.errno != errno.EEXIST:
+                raise
+   
+        os.chdir(self.sim_dir)
         
+        self.group_dir = "GroupData"
+        try:
+            os.makedirs(self.group_dir)
+        except OSError, e:
+            if e.errno != errno.EEXIST:
+                raise
+        
+        self.shapelet_dir = "GroupData/Shapelets"
+        try:
+            os.makedirs(self.shapelet_dir)
+        except OSError, e:
+            if e.errno != errno.EEXIST:
+                raise
+        os.chdir(self.shapelet_dir)
+        
+        self.reconstruct_compare_dir = "ReconstructionComparison"
+        try:
+            os.makedirs(self.reconstruct_compare_dir)
+        except OSError, e:
+            if e.errno != errno.EEXIST:
+                raise
+          
+ 
     def find_coeffs(self,bins):
         """
         Finds the coefficients for the shapelets
         """
+        
+        print "FINDING SHAPELET COEFFICIENTS"
         self.coefficients = []
         self.beta = []
         self.nmax = (bins-3)/2
-        
+        self.hist = []
+        self.x_max = []
         for i,group in enumerate(self.groups_pos):
             x_max = 2.0*np.max(group[0,:])
+            self.x_max = self.x_max + [x_max]
 
             hist,edges = np.histogramdd(group.T,bins=bins,range=[[-x_max,x_max],[-x_max,x_max],[-x_max,x_max]])
             del edges
-            print np.sum(hist)
 
-            hist = simops.massarr[1]*hist
+
+            self.hist= self.hist + [np.log10(1.0+simops.massarr[1]*hist)]
 
             self.coefficients = self.coefficients + [np.asfortranarray(fc.coeff_cube(np.asfortranarray(hist),x_max))]
             self.beta = self.beta+[fc.beta]
-            
-            print np.sum(self.coefficients[i])
-            print self.coefficients[i]
+
     def reconstruct(self,bins):
         """
         Reconstructs the 'original' data using the basis functions and amplitudes
         """
         
+        print "RECONSCTRUCTING GROUP DENSITY"
         self.rebuilt = []
         for i,coefficients in enumerate(self.coefficients):
             self.rebuilt = self.rebuilt + [fc.reconstruct_cube(bins,coefficients,(2.0*np.min(self.groups_pos[i][0,:]),2.0*np.max(self.groups_pos[i][0,:])))]
             
-                             
+                            
     def zeroth_moment(self):
         """
         Finds the zeroth moment of the shape based on the coefficients found. Associated with total mass.
         """
+        
+        print "CALCULATING ZEROTH MOMENT"
         self.M_0 = []
         a = np.arange(0,self.nmax,2)
-        print a
+
         
         for i,coeff in enumerate(self.coefficients):
             self.M_0 = self.M_0+[0.0]
@@ -125,6 +170,7 @@ class ShapeletOperations_DMH(object):
         
         """
         
+        print "CALCULATING CENTROID"
         self.centroid = []
         a = np.arange(0,self.nmax,2)
         b = np.arange(1,self.nmax,2)
@@ -154,6 +200,138 @@ class ShapeletOperations_DMH(object):
         
             self.centroid = self.centroid = [(x1,y1,z1)]
             print self.centroid[i]
-                    
+        
+    def rmsRadius(self):
+        """
+        Calculates the rms radius defined in Fluke. et. al.
+        """
+        print "Calculating RMS Radius Value"
+        a = np.arange(0,self.nmax,2)
+        
+        self.rms = []
+        for i,beta in enumerate(self.beta):
+            rms = 0.0
+            for n1 in a:
+                for n2 in a:
+                    for n3 in a:
+                        rms = rms + self.coefficients[i][n1,n2,n3]*(n1+n2+n3+1.5)*self.U(n1+n2+n3)*self.W(n1,n2,n3)
+                        
+            rms = (2.0*np.pi**(3./4.)*beta**(3.5)/self.M_0[i]) * rms
+            self.rms = self.rms + [rms]  
             
+            print rms    
+            
+    def InertiaTensor(self):
+        """
+        Calculate the moment of inertia via Fluke. et. al.
+        """
+        
+        print "Calculating the Moment of Inertia Tensor via shapelet coefficients."
+        self.InertiaTens = []
+        a = np.arange(0,self.nmax,2)
+        b = np.arange(1,self.nmax,2)
+        
+        for i,beta in enumerate(self.beta):
+            tensor = np.zeros((3,3))
+            
+            for n1 in a:
+                for n2 in a:
+                    for n3 in a:
+                        tensor[0,0] =  tensor[0,0] + self.coefficients[i][n1,n2,n3]*(n2+n3+1)*self.U(n1+n2+n3)*self.W(n1,n2,n3)
+                        tensor[1,1] =  tensor[1,1] + self.coefficients[i][n1,n2,n3]*(n1+n3+1)*self.U(n1+n2+n3)*self.W(n1,n2,n3)
+                        tensor[2,2] =  tensor[2,2] + self.coefficients[i][n1,n2,n3]*(n2+n1+1)*self.U(n1+n2+n3)*self.W(n1,n2,n3)
+            
+ 
+                
+            for n3 in a:
+                for n1 in b:
+                    for n2 in b:
+                        tensor[0,1] = tensor[0,1] -  self.coefficients[i][n1,n2,n3]*np.sqrt((n1+1)*(n2+1))*self.U(n1+n2+n3)*self.W(n1+1,n2+1,n3)
+                        tensor[0,2] = tensor[0,2] -  self.coefficients[i][n1,n3,n2]*np.sqrt((n1+1)*(n2+1))*self.U(n1+n2+n3)*self.W(n1+1,n2+1,n3)
+                        tensor[1,2] = tensor[1,2] -  self.coefficients[i][n3,n2,n1]*np.sqrt((n1+1)*(n2+1))*self.U(n1+n2+n3)*self.W(n1+1,n2+1,n3)
+                      
+            tensor[1,0] = tensor[0,1]
+            tensor[2,0] = tensor[0,2]
+            tensor[2,1] = tensor[1,2]
+                      
+            tensor = tensor* 2.0*np.pi**(3./4.) * beta**3.5
+            
+            self.InertiaTens = self.InertiaTens + [tensor]  
+            
+            print tensor
+            
+    def PeakSN(self):
+        """
+        Calculate the peak signal to noise ratio for each group
+        """
+        self.Ps = []
+            
+        for i,cube in enumerate(self.hist):
+            self.Ps = self.Ps + [20*np.log10(np.max(cube)/np.sqrt(self.MSError[i]))]
+            
+            print "Peak Signal to noise: ", self.Ps[i]  
+            
+    def mserror(self):
+        """
+        calculate the mean square error in the reconstrution.
+        """
+        self.MSError = []
+        
+        for i,cube in enumerate(self.hist):
+            ms = 0.0
+            for j in range(cube.shape[0]):
+                for k in range(cube.shape[0]):
+                    for l in range(cube.shape[0]):
+                        ms = ms + (cube[j,k,l] - self.rebuilt[i][j,k,l])**2
+            ms = ms/cube.shape[0]**3
+            
+            self.MSError = self.MSError + [ms]
+            
+            print "Mean square error: ", ms
+    def Compare(self):
+        """
+        Calculates quantities that compare the original to reconstructed groups
+        """
+        print "Doing overall comparison of reconstruction."
+        self.compare = []
+        for i,cube in enumerate(self.hist):
+            sum_I = np.sum(cube)
+            sum_S = np.sum(self.rebuilt[i])
+            compare = sum_S/sum_I -1.0
+            
+            self.compare = self.compare+[compare]
+            print "Summed quantities difference: ", compare    
+                                  
+    def DensityPlotCompare(self,smoothing_scale, resolution):
+        """
+        Plot the density projection of the original groups and their reconstructions to compare.
+        """
+        print "PLOTTING DENSITY MAPS FOR COMPARISON"
+        for i,group in enumerate(self.groups_pos):
+            plt.clf()
+            plt.figure()
+            plt.suptitle("Density Field for Group "+str(i))
+            plt.subplot(121)
+            plt.title("Original")
+            #window_size = np.ceil(smoothing_scale*resolution)
+            x = group[0,:]
+            y = group[1,:]
+            binned_data = np.log10(np.histogram2d(x,y, resolution,normed=True)[0]+1.0)
+            re_ordered_data = np.transpose(np.fliplr(binned_data))
+            #print re_ordered_data.shape
+            #smoothed_data = plotting.sgolay2d(re_ordered_data,window_size=window_size,order=4)
+            plt.imshow(re_ordered_data,extent=(min(x),max(x),min(y),max(y)),interpolation="Gaussian",aspect='equal')
+            
+            plt.subplot(122)
+            plt.title("Reconstructed")
+
+            density = np.sum(self.rebuilt[i],axis=2)
+            #smoothed_data = plotting.sgolay2d(re_ordered_data,window_size=window_size,order=4)
+            plt.imshow(density,interpolation="Gaussian",aspect='equal',extent=(-self.x_max[i],self.x_max[i],-self.x_max[i],self.x_max[i]))
+            
+            plt.show()
+            
+  
+            plt.savefig(self.reconstruct_compare_dir+'/Group_'+str(i))
+        
         
