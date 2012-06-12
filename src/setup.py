@@ -7,7 +7,7 @@ Created on Jun 11, 2012
 from numpy.distutils.core import setup,Extension
 
 
-version_info = [0,2,0]
+version_info = [0,2,5]
 version = '.'.join([str(i) for i in version_info])
 def generate_version_py():
     fid = open("__version.py",'w')
