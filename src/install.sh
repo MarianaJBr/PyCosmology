@@ -1,7 +1,9 @@
-python setup.py sdist --dist-dir='../../PyCosmology_dist'
-cd ../../PyCosmology_dist
+python setup.py sdist --dist-dir='../dist'
+cd ../dist
 tar zxvf *.tar.gz
-rm *.tar.gz
 cd PyCosmology*
 sudo python setup.py install
-cd ../../PyCosmology/src
+cd ..
+sudo rm -rf PyCosmol*/*
+rmdir PyCosmology*
+cd ../src

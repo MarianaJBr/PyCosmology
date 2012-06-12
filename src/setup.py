@@ -7,7 +7,7 @@ Created on Jun 11, 2012
 from numpy.distutils.core import setup,Extension
 
 
-version_info = [0,1,0]
+version_info = [0,2,0]
 version = '.'.join([str(i) for i in version_info])
 def generate_version_py():
     fid = open("__version.py",'w')
@@ -19,7 +19,7 @@ def generate_version_py():
         
 generate_version_py()
 
-shapelets = Extension('PyCosmology.shapelets.fort.sh',['PyCosmology/shapelets/fort/find_coeffs.f90'],extra_f90_compile_args=['-Wtabs'],f2py_options=['--quiet'])
+shapelets = Extension('PyCosmology.shapelets.fort.shapelets',['PyCosmology/shapelets/fort/find_coeffs.f90'],extra_f90_compile_args=['-Wtabs'],f2py_options=['--quiet'])
 read_sim = Extension('PyCosmology.sims.fort.read_sim',['PyCosmology/sims/fort/ReadSim.f90'],extra_f90_compile_args=['-Wtabs'],f2py_options=['--quiet'])
 
 if __name__=="__main__":

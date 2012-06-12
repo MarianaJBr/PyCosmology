@@ -5,7 +5,7 @@ module shapelets
   !A module defining various subroutines and functions use in 3D shapelet
   !decomposition.
     
-  real(8), parameter	  ::pi= 3.141592653589  !Value of Pi
+  	real(8), parameter	   ::pi= 3.141592653589  !Value of Pi
  	complex(8), parameter ::ci= (0.0d0,1.0d0)   !The Complex Unit (i)
  	real(8)				   :: beta
  	
@@ -85,15 +85,15 @@ module shapelets
   	  	real(8), intent(out)	::bases(n+1)
   	  	integer				::i
   	  	
-  	  	bases(1) = 1.d0/(sqrt(beta*sqrt(pi))*exp(-(x ** 2.d0/(2.d0*beta**2))))
+  	  	bases(1) = 1.d0/(sqrt(beta*sqrt(pi)))*exp(-x ** 2.d0/(2.d0*beta**2))
   	  	bases(2) = sqrt(2.d0)*x*bases(1)/beta
-  	  	write(*,*) "This basis_vector was done"
   	  	do i=3,n+1
   	  		bases(i) = (x/beta)*sqrt(2.d0/(i-1))*bases(i-1)-&
   	  		&sqrt(real(i-2)/real(i-1))*bases(i-2)
   	  	end do
   	  	
   	  	write(*,*) "Basis vector for x = ", x
+  	  	write(*,*) "beta = ", beta
   	  	do i=1,n+1
   	  		write(*,*) bases(i)
   	  	end do 
@@ -155,10 +155,9 @@ module shapelets
  	  
  	  do i=1,Ng+1
  	  	a = -x_max + (i-1)*2.d0*x_max/Ng
- 	  	b = a + 2.d0*x_max/Ng
  	  	call basis_vector(a,n,bases(i,:))
  	  end do
- 	  write(*,*) "THis was done"
+ 	  
  	  do i=1,Ng
  	  	a = -x_max + (i-1)*2.d0*x_max/Ng
  	  	b = a + 2.d0*x_max/Ng 	  
@@ -224,28 +223,36 @@ module shapelets
  	  real(8), intent(out)  :: cube((Ng-3)/2+1,(Ng-3)/2+1,(Ng-3)/2+1)
  	  
  	  real(8)				 ::Ints(Ng,(Ng-3)/2+1)
- 	  real(8)               ::dx,a,b,beta
+ 	  real(8)               ::dx
  	  integer               ::i,j,k,nmax,ii,jj,kk
 
- 	  write(*,*) "this is being done at least..."
+
  	  dx = 2.d0*x_max/Ng
  	  nmax = (Ng-3)/2
  	  beta = x_max/sqrt(2.0d0*Ng)
 
+ 	  write(*,*) "x_max = ", x_max
+ 	  write(*,*) "Ng = ", Ng
+ 	  write(*,*) "nmax = ", nmax
+ 	  write(*,*) "dx = ", dx
+ 	  write(*,*) "beta = ", beta
+ 	  
  	  cube = 0.0d0
  	  call cube_ints(x_max,Ng,nmax,Ints)
  
- 	  
+
  	  do i=1,nmax+1
  	      write(*,*) Ints(10,i)
  	  end do
 
  	  do k=1,nmax+1
-
+ 	  	i=1
+ 	  	j=1
  	  	if (i+j+k .GT. nmax+1)then
  	      		exit
  	    end if
  	    do j=1,nmax+1
+ 	    	i=1
  	    	if (i+j+k .GT. nmax+1)then
  	      		exit
  	      	end if
@@ -303,6 +310,30 @@ module shapelets
   	  			end do
   	  		end do
   	  	end do
+  	  end subroutine
+  	  
+  	  
+   !----------------------------------------------------------------------
+ 	  ! TEST BASIS_VECTOR - calculates bases iteratively
+  !----------------------------------------------------------------------  
+  	  subroutine test(x,b)
+  	  	real(8), intent(in)	::x,b
+  	  	
+  	  	real(8)     	::base_1, base_2, base_3
+
+  	  	
+  	  	base_1 = 1.d0/(sqrt(b*sqrt(pi)))*exp(-x ** 2.d0/(2.d0*b**2))
+  	  	base_2 = sqrt(2.d0)*x*base_1/b
+
+  	  	
+  	  	base_3 = (x/b)*sqrt(2.d0/2.d0)*base_2-&
+  	  		&sqrt(1.d0/2.d0)*base_1
+
+  	    write(*,*) base_1
+  	    write(*,*) base_2
+  	    write(*,*) base_3
+  	    
+ 
   	  end subroutine
 end module
  	  

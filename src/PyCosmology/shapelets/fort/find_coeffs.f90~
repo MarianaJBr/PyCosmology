@@ -1,3 +1,4 @@
+
 module shapelets
   implicit none
   
@@ -6,6 +7,7 @@ module shapelets
     
   real(8), parameter	  ::pi= 3.141592653589  !Value of Pi
  	complex(8), parameter ::ci= (0.0d0,1.0d0)   !The Complex Unit (i)
+ 	real(8)				   :: beta
  	
  	contains
  	
@@ -73,7 +75,31 @@ module shapelets
     end do
     
     end subroutine
-  
+  !----------------------------------------------------------------------
+ 	  ! BASIS_VECTOR - calculates bases iteratively
+  !----------------------------------------------------------------------  
+  	  subroutine basis_vector(x,n,bases)
+  	  	real(8), intent(in)	::x
+  	  	integer, intent(in)	::n
+  	  	
+  	  	real(8), intent(out)	::bases(n+1)
+  	  	integer				::i
+  	  	
+  	  	bases(1) = 1.d0/(sqrt(beta*sqrt(pi))*exp(-(x ** 2.d0/(2.d0*beta**2))))
+  	  	bases(2) = sqrt(2.d0)*x*bases(1)/beta
+  	  	write(*,*) "This basis_vector was done"
+  	  	do i=3,n+1
+  	  		bases(i) = (x/beta)*sqrt(2.d0/(i-1))*bases(i-1)-&
+  	  		&sqrt(real(i-2)/real(i-1))*bases(i-2)
+  	  	end do
+  	  	
+  	  	write(*,*) "Basis vector for x = ", x
+  	  	do i=1,n+1
+  	  		write(*,*) bases(i)
+  	  	end do 
+  	  end subroutine
+  	  
+    
   !----------------------------------------------------------------------
  	  ! SHAPELET BASIS FUNCTIONS
   !----------------------------------------------------------------------	  
@@ -114,36 +140,40 @@ module shapelets
  	                &sqrt((i-1)/real(i))*Ints(i-2)
  	  end do
  	end subroutine
+
   !----------------------------------------------------------------------
- 	  ! ERF
- 	!----------------------------------------------------------------------	 	  
+ 	  ! cube_ints - finds the integrals necessary for a cube
+ 	!----------------------------------------------------------------------	  
+ 	subroutine cube_ints(x_max,Ng,n,Ints)
+ 	
+ 	  integer, intent(in)  ::n,Ng
+ 	  real(8), intent(in)	::x_max
  	  
- 	function erf( x )
-    
-    real(8), intent(in)  :: x
-    real(8)              :: erf
-    real(8)              :: y
-    
-    real(8)              :: a1 = 0.0705230784d0
-    real(8)              :: a2 = 0.0422820123d0
-    real(8)              :: a3 = 0.0092705272d0
-    real(8)              :: a4 = 0.0001520143d0
-    real(8)              :: a5 = 0.0002765672d0
-    real(8)              :: a6 = 0.0000430638d0
-    
-    if (x.GT.0.d0)then
-    erf  = 1.0d0 - 1.0d0/(1.0d0 + a1*x    + a2*x**2 + &
-                                    a3*x**3 + a4*x**4 + &
-                                    a5*x**5 + a6*x**6)**16
-    else
-        y = -x
-        erf  = -1.0d0 + 1.0d0/(1.0d0 + a1*y    + a2*y**2 + &
-                                    a3*y**3 + a4*y**4 + &
-                                    a5*y**5 + a6*y**6)**16
-    end if
-    
-                                    
-  end function erf
+ 	  integer              ::i,j
+ 	  real(8)              ::bases(Ng+1,n+1),a,b
+ 	  real(8), intent(out) ::Ints(Ng,n+1)
+ 	  
+ 	  do i=1,Ng+1
+ 	  	a = -x_max + (i-1)*2.d0*x_max/Ng
+ 	  	b = a + 2.d0*x_max/Ng
+ 	  	call basis_vector(a,n,bases(i,:))
+ 	  end do
+ 	  write(*,*) "THis was done"
+ 	  do i=1,Ng
+ 	  	a = -x_max + (i-1)*2.d0*x_max/Ng
+ 	  	b = a + 2.d0*x_max/Ng 	  
+		  
+ 	  	Ints(i,1) = (beta*pi**0.5d0 /2.d0)**(0.5d0) * (erf(b/(beta*sqrt(2.d0)))&
+		&-erf(a/(beta*sqrt(2.d0))))
+		  
+		Ints(i,2) = -sqrt(2.d0)*beta*(bases(i+1,1)-bases(i,1))
+ 	  
+		do j=3,n+1
+ 	    	Ints(i,j) = -beta*sqrt(2.d0/n)*(bases(i+1,j-1)-bases(i+1,j-1))+&
+ 	                &sqrt((i-1)/real(i))*Ints(i,j-2)
+ 	    end do
+ 	  end do
+ 	end subroutine
   
   !----------------------------------------------------------------------
  	  ! COEFF
@@ -197,16 +227,14 @@ module shapelets
  	  real(8)               ::dx,a,b,beta
  	  integer               ::i,j,k,nmax,ii,jj,kk
 
+ 	  write(*,*) "this is being done at least..."
  	  dx = 2.d0*x_max/Ng
  	  nmax = (Ng-3)/2
  	  beta = x_max/sqrt(2.0d0*Ng)
 
  	  cube = 0.0d0
- 	  do j=1,Ng
- 	  	a = -x_max + (j-1)*dx
- 	  	b = a + dx
- 	  	call Integral(a,b,beta,nmax,Ints(j,:))
- 	  end do
+ 	  call cube_ints(x_max,Ng,nmax,Ints)
+ 
  	  
  	  do i=1,nmax+1
  	      write(*,*) Ints(10,i)

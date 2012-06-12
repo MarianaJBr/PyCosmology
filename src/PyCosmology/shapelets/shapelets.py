@@ -64,7 +64,7 @@ class ShapeletOperations_DMH(object):
             hist = simops.massarr[1]*hist
 
             self.coefficients = self.coefficients + [np.asfortranarray(fc.coeff_cube(np.asfortranarray(hist),x_max))]
-            self.beta = self.beta+[np.max(group[0,:])/np.sqrt(2.*bins)]
+            self.beta = self.beta+[fc.beta]
             
             print np.sum(self.coefficients[i])
             print self.coefficients[i]
@@ -123,7 +123,6 @@ class ShapeletOperations_DMH(object):
         """
         Finds the centroid of a group defined by Fluke et. al.
         
-        Hmm..
         """
         
         self.centroid = []
