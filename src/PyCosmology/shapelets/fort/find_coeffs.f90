@@ -86,11 +86,15 @@ module shapelets
   	  	integer				::i
   	  	
   	  	bases(1) = 1.d0/(sqrt(beta*sqrt(pi)))*exp(-x ** 2.d0/(2.d0*beta**2))
-  	  	bases(2) = sqrt(2.d0)*x*bases(1)/beta
-  	  	do i=3,n+1
-  	  		bases(i) = (x/beta)*sqrt(2.d0/(i-1))*bases(i-1)-&
-  	  		&sqrt(real(i-2)/real(i-1))*bases(i-2)
-  	  	end do
+  	  	if(n.GT.0)then
+  	  		bases(2) = sqrt(2.d0)*x*bases(1)/beta
+  	  	end if
+  	  	if (n.GT.1)then
+			do i=3,n+1
+				bases(i) = (x/beta)*sqrt(2.d0/(i-1))*bases(i-1)-&
+				&sqrt(real(i-2)/real(i-1))*bases(i-2)
+			end do
+		end if
   	  	
 
   	  end subroutine
@@ -316,27 +320,46 @@ module shapelets
   	  end subroutine
   	  
   	  
-   !----------------------------------------------------------------------
+  !----------------------------------------------------------------------
  	  ! TEST BASIS_VECTOR - calculates bases iteratively
   !----------------------------------------------------------------------  
-  	  subroutine test(x,b)
-  	  	real(8), intent(in)	::x,b
+  	  subroutine test(Ng,cube_0,cube_1,cube_2,cube_3)
+  	  	!This subroutine produces four cubes, based on the basis vectors
+  	  	!with beta = 1, n=(0,0,0), (0,1,0),(2,0,2),(1,2,4).
+  	  		
+  	  	integer, intent(in)	::Ng
+  	  	real(8), intent(out)::cube_0(Ng,Ng,Ng), cube_1(Ng,Ng,Ng)
+  	  	real(8), intent(out)::cube_2(Ng,Ng,Ng), cube_3(Ng,Ng,Ng)
   	  	
-  	  	real(8)     	::base_1, base_2, base_3
-
+  	  	real(8)		:: x_max, x 
+  	  	real(8)		:: base(5,Ng)
+  	  	integer		::i,j,k
   	  	
-  	  	base_1 = 1.d0/(sqrt(b*sqrt(pi)))*exp(-x ** 2.d0/(2.d0*b**2))
-  	  	base_2 = sqrt(2.d0)*x*base_1/b
-
   	  	
-  	  	base_3 = (x/b)*sqrt(2.d0/2.d0)*base_2-&
-  	  		&sqrt(1.d0/2.d0)*base_1
+  	  	x_max = 3.d0
+  	  	beta = 1.d0
+  	  	
+  	  	cube_0 = 0.0d0
+  	  	cube_1 = 0.0d0
+  	  	cube_2 = 0.0d0
+  	  	cube_3 = 0.0d0
+  	  	
+  	  	do i=1,Ng
+  	  		x = -x_max+(i-0.5d0)*2.0*x_max/Ng
+  	  		call basis_vector(x,4,base(:,i))
+  	  	end do
+  	  	
+  	  	do k=1,Ng
+  	  		do j = 1,Ng
+  	  			do i = 1,Ng
+  	  				cube_0(i,j,k) =cube_0(i,j,k) + base(1,i)*base(1,j)*base(1,k)
+  	  				cube_1(i,j,k)=cube_1(i,j,k)+base(1,i)*base(2,j)*base(1,k)
+  	  				cube_2(i,j,k)=cube_2(i,j,k)+base(3,i)*base(1,j)*base(3,k)
+  	  				cube_3(i,j,k)=cube_3(i,j,k)+base(2,i)*base(3,j)*base(5,k)
+  	  			end do
+  	  		end do
+  	  	end do
 
-  	    write(*,*) base_1
-  	    write(*,*) base_2
-  	    write(*,*) base_3
-  	    
- 
   	  end subroutine
 end module
  	  

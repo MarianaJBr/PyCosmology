@@ -10,7 +10,7 @@ ids_filename = '/Users/Steven/Documents/PhD/Simulations/Snap_130/groups/groups_1
 
 n_groups = 100
 reverse = False
-centring_mode = 2
+centring_mode = 1
 
 loud = False
 

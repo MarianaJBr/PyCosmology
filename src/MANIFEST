@@ -15,7 +15,6 @@ PyCosmology/sims/fort/__init__.py
 PyCosmology/structure/CAMB_Config.py
 PyCosmology/structure/Config.py
 PyCosmology/structure/MassFunctionClasses.py
-PyCosmology/structure/Observation.py
 PyCosmology/structure/OutputFunctions.py
 PyCosmology/structure/SetupFunctions.py
 PyCosmology/structure/UtilityFunctions.py

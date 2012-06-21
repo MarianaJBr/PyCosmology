@@ -28,13 +28,16 @@ class sims(object):
         if group_filename:
             fsims.find_groups(group_filename,ids_filename)
             if n_groups is 'all':
-                n_groups = fsims.ngroups
+                self.n_groups = fsims.ngroups
+            else:
+                self.n_groups = n_groups
             
             self.groups_pos = []
             self.groups_vel = []
             self.axis_b = []
             self.axis_c = []
-            for i in range(n_groups):
+            self.axis_d = []
+            for i in range(self.n_groups):
                 if not reverse:
                     self.groups_pos = self.groups_pos + [np.asfortranarray(fsims.pos[:,fsims.group_number == i+1])]
                     self.groups_vel = self.groups_vel + [np.asfortranarray(fsims.vel[:,fsims.group_number == i+1])]
@@ -44,10 +47,10 @@ class sims(object):
             
                 fsims.centre(self.groups_pos[i],mode=centring_mode)
                 fsims.rotate(self.groups_pos[i],self.groups_vel[i],[0.0,0.0,0.0],0.0)
-                axis_ratio_b = fsims.axis_ratio_b
-                axis_ratio_c = fsims.axis_ratio_c
-                self.axis_b.append(float(axis_ratio_b))
-                self.axis_c.append(float(axis_ratio_c))
+
+                self.axis_b.append(float(fsims.axis_ratio_b))
+                self.axis_c.append(float(fsims.axis_ratio_c))
+                self.axis_d.append(float(fsims.axis_ratio_d))
 
         self.make_directories(filename)
         
@@ -130,11 +133,87 @@ class sims(object):
         print "Plotting Distribution of Axis Ratios"
 
         plt.clf()
-        plt.title("Axis ratios for the groups (N = "+str(len(self.axis_b))+')')
-        plt.plot(self.axis_b,self.axis_c,'bo')
-        plt.xlabel("Second Longest to Longest Ratio")
-        plt.ylabel("Third Longest to longest Ratio")
+        fig = plt.figure(1, figsize=(5.5,5.5))
+        plt.suptitle("Axis ratio scatter for the groups (N = "+str(len(self.axis_b))+')')
+
+
+        from mpl_toolkits.axes_grid1 import make_axes_locatable
+    
+        # the scatter plot:
+        axScatter = plt.subplot(111)
+        axScatter.scatter(self.axis_b, self.axis_d)
         
+        # create new axes on the right and on the top of the current axes
+        # The first argument of the new_vertical(new_horizontal) method is
+        # the height (width) of the axes to be created in inches.
+        divider = make_axes_locatable(axScatter)
+        axHistx = divider.append_axes("top", 1.2, pad=0.1, sharex=axScatter)
+        axHisty = divider.append_axes("right", 1.2, pad=0.1, sharey=axScatter)
+        
+        # make some labels invisible
+        plt.setp(axHistx.get_xticklabels() + axHisty.get_yticklabels(),
+                 visible=False)
+        
+        # now determine nice limits by hand:
+        #binwidth = 0.25
+        #xymax = np.max( [np.max(np.fabs(self.axis_b)), np.max(np.fabs(self.axis_d))] )
+        #lim = ( int(xymax/binwidth) + 1) * binwidth
+        
+        #bins = np.arange(-lim, lim + binwidth, binwidth)
+        axHistx.hist(self.axis_b, bins=20)
+        axHisty.hist(self.axis_d, bins=20, orientation='horizontal')
+        
+        # the xaxis of axHistx and yaxis of axHisty are shared with axScatter,
+        # thus there is no need to manually adjust the xlim and ylim of these
+        # axis.
+        
+        #axHistx.axis["bottom"].major_ticklabels.set_visible(False)
+        for tl in axHistx.get_xticklabels():
+            tl.set_visible(False)
+        axHistx.set_yticks([])
+        
+        #axHisty.axis["left"].major_ticklabels.set_visible(False)
+        for tl in axHisty.get_yticklabels():
+            tl.set_visible(False)
+        axHisty.set_xticks([])
+
+        plt.draw()
         plt.show()
+        plt.savefig(self.group_stats_dir+'/AxisRatioScatter')
         
-        plt.savefig(self.group_stats_dir+'/AxisRatioDistribution')
+        plt.clf()
+        plt.figure()
+        plt.suptitle("Axis ratio distributions for "+str(len(self.axis_b))+" groups.")
+        plt.subplot(311)
+        plt.hist(self.axis_b,bins=20)
+        plt.xlabel("b/a")
+        plt.subplot(312)
+        plt.hist(self.axis_c,bins=20)
+        plt.xlabel("c/a")
+        plt.subplot(313)
+        plt.hist(self.axis_d,bins=20)
+        plt.xlabel("d/c")
+        plt.savefig(self.group_stats_dir+'/AxisRatioDistributions')
+        
+        
+    def Centre_of_mass_offsets(self):
+        """
+        Calculates the distribution of centre of mass offsets (not right yet)
+        """
+        
+        for i in range(self.n_groups):
+                if not reverse:
+                    self.groups_pos = self.groups_pos + [np.asfortranarray(fsims.pos[:,fsims.group_number == i+1])]
+                    self.groups_vel = self.groups_vel + [np.asfortranarray(fsims.vel[:,fsims.group_number == i+1])]
+                else:
+                    self.groups_pos = self.groups_pos + [np.asfortranarray(fsims.pos[:,fsims.group_number == np.max(fsims.group_number)-i])]
+                    self.groups_vel = self.groups_vel + [np.asfortranarray(fsims.vel[:,fsims.group_number == np.max(fsims.group_number)-i])]
+            
+                fsims.centre(self.groups_pos[i],mode=centring_mode)
+        
+        
+        
+        
+        
+        
+        

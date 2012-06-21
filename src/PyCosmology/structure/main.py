@@ -14,7 +14,6 @@ if __name__ == '__main__':
     import UtilityFunctions as ute
     import SetupFunctions as setup
     import OutputFunctions as output
-    from Observation import *
     from Config import *
 
 #===================================================================
@@ -117,22 +116,6 @@ if __name__ == '__main__':
          
     sec_time_1 = time.time()
     print "  Section Time: ", sec_time_1-sec_time_0   
-    
-#============================================================
-#    SIMULATION COMPARISON
-#============================================================
-    hist = []
-    mass_bins = []
-    if config.compare_sims:
-        for i,filename in enumerate(config.sim_files):
-            obs = HMFObservations(config.sim_dir+filename,20)
-            (hist_temp,mass_bins_temp) = obs.MakeHist(config.hist_steps)
-            mass_bins_temp_2 = np.zeros((mass_bins_temp.shape[0]-1))
-            for j in range(mass_bins_temp.shape[0]-1):
-                mass_bins_temp_2[j] = mass_bins_temp[j]+(mass_bins_temp[j+1] - mass_bins_temp[j])/2.0
-            hist = hist + [hist_temp]
-            mass_bins = mass_bins+[mass_bins_temp_2]
-
     
 #============================================================
 #    PLOT RESULTS

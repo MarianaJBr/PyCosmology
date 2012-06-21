@@ -22,7 +22,7 @@ class ShapeletOperations_DMH(object):
     results based on this.
     """
     
-    def __init__(self,sim_file,groups_file,group_ids_file, n=1,reverse=False):
+    def __init__(self,sim_file,groups_file,group_ids_file, n=1,reverse=False,test=False,basis_test=False,n_test=51):
         """
         Read in a sim-file for use with the shapelet analysis.
         
@@ -35,6 +35,11 @@ class ShapeletOperations_DMH(object):
         reverse: optional, default False, whether to use the n SMALLEST groups rather than largest.
         """
         
+        if basis_test:
+            self.test_bases(n_test)
+            return
+            
+        self.test = test
         simops.readsim(sim_file)
         simops.find_groups(groups_file,group_ids_file)
         
@@ -97,18 +102,33 @@ class ShapeletOperations_DMH(object):
         self.nmax = (bins-3)/2
         self.hist = []
         self.x_max = []
-        for i,group in enumerate(self.groups_pos):
-            x_max = 2.0*np.max(group[0,:])
+        if not self.test:
+            for group in self.groups_pos:
+                x_max = 2.0*np.max(group[0,:])
+                self.x_max = self.x_max + [x_max]
+    
+                hist,edges = np.histogramdd(group.T,bins=bins,range=[[-x_max,x_max],[-x_max,x_max],[-x_max,x_max]])
+                del edges
+    
+                hist = np.log10(1.0+simops.massarr[1]*hist)
+                self.hist= self.hist + [hist]
+    
+                self.coefficients = self.coefficients + [np.asfortranarray(fc.coeff_cube(np.asfortranarray(hist),x_max))]
+                self.beta = self.beta+[fc.beta]
+                
+        else:
+            self.test_sphere()
+            x_max = 2.0
             self.x_max = self.x_max + [x_max]
-
-            hist,edges = np.histogramdd(group.T,bins=bins,range=[[-x_max,x_max],[-x_max,x_max],[-x_max,x_max]])
+    
+            hist,edges = np.histogramdd(self.test_group,bins=bins,range=[[-x_max,x_max],[-x_max,x_max],[-x_max,x_max]])
             del edges
-
-
-            self.hist= self.hist + [np.log10(1.0+simops.massarr[1]*hist)]
-
+    
+            hist = np.log10(1.0+simops.massarr[1]*hist)
+            self.hist= self.hist + [hist]
+    
             self.coefficients = self.coefficients + [np.asfortranarray(fc.coeff_cube(np.asfortranarray(hist),x_max))]
-            self.beta = self.beta+[fc.beta]
+            self.beta = self.beta+[fc.beta]            
 
     def reconstruct(self,bins):
         """
@@ -118,7 +138,7 @@ class ShapeletOperations_DMH(object):
         print "RECONSCTRUCTING GROUP DENSITY"
         self.rebuilt = []
         for i,coefficients in enumerate(self.coefficients):
-            self.rebuilt = self.rebuilt + [fc.reconstruct_cube(bins,coefficients,(2.0*np.min(self.groups_pos[i][0,:]),2.0*np.max(self.groups_pos[i][0,:])))]
+            self.rebuilt = self.rebuilt + [fc.reconstruct_cube(bins,coefficients,(-self.x_max[i],self.x_max[i]))]
             
                             
     def zeroth_moment(self):
@@ -198,7 +218,7 @@ class ShapeletOperations_DMH(object):
                 
             z1 = z1*np.pi**(3./4.)*self.beta[i]**(5./2.)/self.M_0[i]
         
-            self.centroid = self.centroid = [(x1,y1,z1)]
+            self.centroid = self.centroid + [(x1,y1,z1)]
             print self.centroid[i]
         
     def rmsRadius(self):
@@ -307,31 +327,110 @@ class ShapeletOperations_DMH(object):
         Plot the density projection of the original groups and their reconstructions to compare.
         """
         print "PLOTTING DENSITY MAPS FOR COMPARISON"
-        for i,group in enumerate(self.groups_pos):
-            plt.clf()
-            plt.figure()
-            plt.suptitle("Density Field for Group "+str(i))
-            plt.subplot(121)
-            plt.title("Original")
-            #window_size = np.ceil(smoothing_scale*resolution)
-            x = group[0,:]
-            y = group[1,:]
-            binned_data = np.log10(np.histogram2d(x,y, resolution,normed=True)[0]+1.0)
-            re_ordered_data = np.transpose(np.fliplr(binned_data))
-            #print re_ordered_data.shape
-            #smoothed_data = plotting.sgolay2d(re_ordered_data,window_size=window_size,order=4)
-            plt.imshow(re_ordered_data,extent=(min(x),max(x),min(y),max(y)),interpolation="Gaussian",aspect='equal')
-            
-            plt.subplot(122)
-            plt.title("Reconstructed")
-
-            density = np.sum(self.rebuilt[i],axis=2)
-            #smoothed_data = plotting.sgolay2d(re_ordered_data,window_size=window_size,order=4)
-            plt.imshow(density,interpolation="Gaussian",aspect='equal',extent=(-self.x_max[i],self.x_max[i],-self.x_max[i],self.x_max[i]))
-            
-            plt.show()
+        if not self.test:
+            for i,group in enumerate(self.groups_pos):
+                plt.clf()
+                plt.figure()
+                plt.suptitle("Density Field for Group "+str(i))
+                plt.subplot(121)
+                plt.title("Original")
+                #window_size = np.ceil(smoothing_scale*resolution)
+                x = group[0,:]
+                y = group[1,:]
+                binned_data = np.log10(np.histogram2d(x,y, resolution,normed=True)[0]+1.0)
+                re_ordered_data = np.transpose(np.fliplr(binned_data))
+                #print re_ordered_data.shape
+                #smoothed_data = plotting.sgolay2d(re_ordered_data,window_size=window_size,order=4)
+                plt.imshow(re_ordered_data,extent=(min(x),max(x),min(y),max(y)),interpolation="Gaussian",aspect='equal')
+                
+                plt.subplot(122)
+                plt.title("Reconstructed")
+    
+                density = np.sum(self.rebuilt[i],axis=2)
+                #smoothed_data = plotting.sgolay2d(re_ordered_data,window_size=window_size,order=4)
+                plt.imshow(density,interpolation="Gaussian",aspect='equal',extent=(-self.x_max[i],self.x_max[i],-self.x_max[i],self.x_max[i]))
+                plt.show()
             
   
-            plt.savefig(self.reconstruct_compare_dir+'/Group_'+str(i))
+                plt.savefig(self.reconstruct_compare_dir+'/Group_'+str(i))
+        else:
+            plt.clf()
+            plt.figure()
+            plt.suptitle("Density Field for Test Group")
+            plt.subplot(121)
+            plt.title("Original")
+                #window_size = np.ceil(smoothing_scale*resolution)
+            x = np.array(self.test_group[0])
+            y = np.array(self.test_group[1])
+            binned_data = np.log10(np.histogram2d(x,y, resolution,normed=True)[0]+1.0)
+            re_ordered_data = np.transpose(np.fliplr(binned_data))
+                #print re_ordered_data.shape
+                #smoothed_data = plotting.sgolay2d(re_ordered_data,window_size=window_size,order=4)
+            plt.imshow(re_ordered_data,extent=(min(x),max(x),min(y),max(y)),interpolation="Gaussian",aspect='equal')
+                
+            plt.subplot(122)
+            plt.title("Reconstructed")
+    
+            density = np.sum(self.rebuilt[0],axis=2)
+                #smoothed_data = plotting.sgolay2d(re_ordered_data,window_size=window_size,order=4)
+            plt.imshow(density,interpolation="Gaussian",aspect='equal',extent=(-self.x_max[0],self.x_max[0],-self.x_max[0],self.x_max[0]))                    
+            plt.savefig(self.reconstruct_compare_dir+'/TEST_GROUP')
+
         
+    def test_sphere(self):
+        """
+        Creates a mock group in the shape of a power-law sphere.
+        """
+        print "Making a test sphere"  
+        self.test_group = np.zeros((3,5000))
+        self.test_group[0,:] = np.random.rand(5000)
+        self.test_group[1,:] = np.random.rand(5000)*2*np.pi
+        self.test_group[2,:] = np.random.rand(5000)*np.pi
+            
+        self.test_group = self.Convert_to_Cartesian(self.test_group)
         
+    def Convert_to_Cartesian(self,pos):
+        """
+        Convert a set of spherical polar co-ordinates into cartesian 3-space
+        """
+  
+        x_pos = pos[0,:]*np.cos(pos[2,:])*np.sin(pos[1,:])
+        y_pos = pos[0,:]*np.sin(pos[2,:])*np.sin(pos[1,:])
+        z_pos = pos[0,:]*np.cos(pos[2,:])
+            
+        return [x_pos,y_pos,z_pos]
+    
+    def test_bases(self,n_test):
+        """
+        Use the fortran code to test basis vector outputs
+        """
+        
+        cube0,cube1,cube2,cube3 = fc.test(n_test)
+        
+        plt.clf()
+        plt.title("Basis Vector (0,0,0)")
+        plt.imshow(cube0[:,:,n_test/2], interpolation='bilinear', origin='lower',
+                        extent=(-3,3,-3,3))
+        plt.contour(cube0[:,:,n_test/2],origin='lower',linewidths=2,extent=(-3,3,-3,3))
+        plt.savefig('/Users/Steven/Documents/cube_0_test') 
+        
+        plt.clf()
+        plt.title("Basis Vector (0,1,0)")
+        plt.imshow(cube1[:,:,n_test/2], interpolation='bilinear', origin='lower',
+                        extent=(-3,3,-3,3))
+        plt.contour(cube1[:,:,n_test/2],origin='lower',linewidths=2,extent=(-3,3,-3,3))
+        plt.savefig('/Users/Steven/Documents/cube_1_test') 
+        
+        plt.clf()
+        plt.title("Basis Vector (2,0,2)")
+        plt.imshow(cube2[:,:,n_test/2], interpolation='bilinear', origin='lower',
+                        extent=(-3,3,-3,3))
+        plt.contour(cube2[:,:,n_test/2],origin='lower',linewidths=2,extent=(-3,3,-3,3))
+        plt.savefig('/Users/Steven/Documents/cube_2_test')  
+        
+        plt.clf()
+        plt.title("Basis Vector (1,2,4)")
+        plt.imshow(cube3[:,:,n_test/2], interpolation='bilinear', origin='lower',
+                        extent=(-3,3,-3,3))
+        plt.contour(cube3[:,:,n_test/2],origin='lower',linewidths=2,extent=(-3,3,-3,3))
+        plt.savefig('/Users/Steven/Documents/cube_3_test')   

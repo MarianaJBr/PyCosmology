@@ -21,7 +21,7 @@ module SimOps
 	real(8)	 ::HubbleParam,Omega0, Redshift
 	
 	integer		:: ngroups
-	real		:: axis_ratio_b, axis_ratio_c
+	real		:: axis_ratio_b, axis_ratio_c, axis_ratio_d
 	logical		:: loud = .FALSE.
 	
 	contains
@@ -237,9 +237,11 @@ module SimOps
             ! Return the ratios of axes
               axis_ratio_b = sqrt(eigval(2)/eigval(1))
               axis_ratio_c = sqrt(eigval(3)/eigval(1))
+              axis_ratio_d = sqrt(eigval(3)/eigval(2))
               if (loud) then
               write(*,*) "Ratio of axes lengths b/a = ", axis_ratio_b
               write(*,*) "Ratio of axes lengths c/a = ", axis_ratio_c
+              write(*,*) "Ratio of axes lengths c/b = ", axis_ratio_d
               end if
               
             ! Project data into co-ordinates defined by

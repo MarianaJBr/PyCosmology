@@ -14,11 +14,14 @@ class config(object):
     ids_file = "/Users/Steven/Documents/PhD/Simulations/Snap_130/groups/groups_130.pos.ids"
     
     reverse = False      # If True, use smallest groups in the simulation
-    n_groups = 1        # Number of groups to use.
+    n_groups = 4        # Number of groups to use.
     
-    bins = 50
+    bins = 51
     
     reconstruct = True
-    smoothing_scale = 5
-    resolution = 300
+    smoothing_scale = 7
+    resolution = 200
+    test = False
     
+    basis_test = True
+    n_test = 51
