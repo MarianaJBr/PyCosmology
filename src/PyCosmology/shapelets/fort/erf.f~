@@ -1,4 +1,4 @@
-      FUNCTION erf(x)
+      FUNCTION external erf(x)
       REAL erf,x
 CU    USES gammp
       REAL gammp

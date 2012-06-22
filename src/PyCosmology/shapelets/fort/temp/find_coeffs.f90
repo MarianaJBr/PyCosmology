@@ -1,3 +1,4 @@
+include 'erf.f90'
 
 module shapelets
   implicit none
@@ -5,59 +6,82 @@ module shapelets
   !A module defining various subroutines and functions use in 3D shapelet
   !decomposition.
     
-  	real(16), parameter	   ::pi= 3.141592653589  !Value of Pi
- 	complex(16), parameter ::ci= (0.0d0,1.0d0)   !The Complex Unit (i)
- 	real(16)				   :: beta_c
+  	real(8), parameter	   ::pi= 3.141592653589  !Value of Pi
+ 	complex(8), parameter ::ci= (0.0d0,1.0d0)   !The Complex Unit (i)
+ 	real(8)				   :: beta
  	
  	contains
+ 	
+ 	!----------------------------------------------------------------------
+ 	  ! FACTORIAL
+ 	!----------------------------------------------------------------------
+ 	function factorial(n)
+ 		!Simply calculates the integer factorial of a number, probably not
+ 		!very good with big n. NOT USED IN THE CUBE DECOMPOSITION.
+ 	  integer, intent(in) ::n
+ 	  
+ 	  integer(8)          ::factorial
+ 	  integer             ::i
+ 	  
+ 	  factorial = 1
+ 	  if (n.EQ.0 .OR. n.EQ.1) then
+ 	     return
+ 	  else
+ 	
+ 	  
+          do i=1,n
+            factorial = factorial*i
+          end do
+      end if
+ 	end function
 
-! 	!----------------------------------------------------------------------
-! 	  ! HERMITE POLYNOMIAL
-! 	!---------------------------------------------------------------------- 	
-! 	subroutine Hermite(x,n,H)
-! 	!Calculates the first n+1 polynomials (including 0). NOT USED IN THE
-! 	!CUBE DECOMPOSITION
-!
-!    real(16), intent(in) ::x
-!    integer, intent(in) ::n
-!      
-!    real(16),intent(out) ::H(n+1)
-!    integer             ::i
-!    
-!    H(1) = 1
-!    H(2) = 2.d0*x
-!    
-!    if (n.GT.2)then
-!    do i=2,n
-!      H(i+1) = 2.d0*x*H(i) - 2*i*H(i-1)
-!    end do
-!    end if
-!
-!  end subroutine
-!    
-!  !----------------------------------------------------------------------
-! 	  ! PHI
-! 	!----------------------------------------------------------------------	
-! 	subroutine phi(x,n,p)
-! 	!Calculates first n+1 phi's from Fluke et. al. NOT USED IN THE CUBE
-! 	!DECOMPOSITION
-! 	
-!    real(16), intent(in) ::x
-!    integer, intent(in) ::n
-!    
-!    real(16),intent(out) ::p(n+1)
-!    real(16)             ::H(n+1)
-!    integer             ::i
-!    
-!    call Hermite(x,n,H)
-!    do i=0,n
-!    
-!    p(i+1) = (2**i * pi**0.5d0 * Factorial(i))**(-0.5d0) &
-!                                        &* H(i+1)* exp(-x**2 /2)
-!                      
-!    end do
-!    
-!    end subroutine
+ 	!----------------------------------------------------------------------
+ 	  ! HERMITE POLYNOMIAL
+ 	!---------------------------------------------------------------------- 	
+ 	subroutine Hermite(x,n,H)
+ 	!Calculates the first n+1 polynomials (including 0). NOT USED IN THE
+ 	!CUBE DECOMPOSITION
+
+    real(8), intent(in) ::x
+    integer, intent(in) ::n
+      
+    real(8),intent(out) ::H(n+1)
+    integer             ::i
+    
+    H(1) = 1
+    H(2) = 2.d0*x
+    
+    if (n.GT.2)then
+    do i=2,n
+      H(i+1) = 2.d0*x*H(i) - 2*i*H(i-1)
+    end do
+    end if
+
+  end subroutine
+    
+  !----------------------------------------------------------------------
+ 	  ! PHI
+ 	!----------------------------------------------------------------------	
+ 	subroutine phi(x,n,p)
+ 	!Calculates first n+1 phi's from Fluke et. al. NOT USED IN THE CUBE
+ 	!DECOMPOSITION
+ 	
+    real(8), intent(in) ::x
+    integer, intent(in) ::n
+    
+    real(8),intent(out) ::p(n+1)
+    real(8)             ::H(n+1)
+    integer             ::i
+    
+    call Hermite(x,n,H)
+    do i=0,n
+    
+    p(i+1) = (2**i * pi**0.5d0 * Factorial(i))**(-0.5d0) &
+                                        &* H(i+1)* exp(-x**2 /2)
+                      
+    end do
+    
+    end subroutine
   !----------------------------------------------------------------------
  	  ! BASIS_VECTOR - calculates bases iteratively
   !----------------------------------------------------------------------  
@@ -65,19 +89,19 @@ module shapelets
   	  !Calculates the first n+1 basis functions at a point x, based on the
   	  !iterative method of Fluke et. al.
   	  	  
-  	  	real(16), intent(in)	::x
+  	  	real(8), intent(in)	::x
   	  	integer, intent(in)	::n
   	  	
   	  	real(8), intent(out)	::bases(n+1)
   	  	integer				::i
   	  	
-  	  	bases(1) = 1.d0/(sqrt(beta_c*sqrt(pi)))*exp(-x ** 2.d0/(2.d0*beta_c**2))
+  	  	bases(1) = 1.d0/(sqrt(beta*sqrt(pi)))*exp(-x ** 2.d0/(2.d0*beta**2))
   	  	if(n.GT.0)then
-  	  		bases(2) = sqrt(2.d0)*x*bases(1)/beta_c
+  	  		bases(2) = sqrt(2.d0)*x*bases(1)/beta
   	  	end if
   	  	if (n.GT.1)then
 			do i=3,n+1
-				bases(i) = (x/beta_c)*sqrt(2.d0/(i-1))*bases(i-1)-&
+				bases(i) = (x/beta)*sqrt(2.d0/(i-1))*bases(i-1)-&
 				&sqrt(real(i-2)/real(i-1))*bases(i-2)
 			end do
 		end if
@@ -86,23 +110,52 @@ module shapelets
   	  end subroutine
   	  
     
-!  !----------------------------------------------------------------------
-! 	  ! SHAPELET BASIS FUNCTIONS
-!  !----------------------------------------------------------------------	  
-! 	subroutine basis(x,n,b,Base)
-! 	!Calculates the first n+1 basis functions at a point x, iterating on the
-! 	!Hermite polynomials rather than the basis functions themselves. NOT USED
-! 	!IN THE CUBE DECOMPOSITION.
-! 		
-! 	  real(16), intent(in) ::x
-! 	  integer, intent(in) ::n
-! 	  real(16), intent(in) ::b
-! 	  real(16)			   :: Base(n+1),p(n+1)
-! 	  
-!    
-! 	  call phi(x/b,n,p)
-! 	  Base = b**(-1.d0/2.d0) * p
-! 	 end subroutine
+  !----------------------------------------------------------------------
+ 	  ! SHAPELET BASIS FUNCTIONS
+  !----------------------------------------------------------------------	  
+ 	subroutine basis(x,n,b,Base)
+ 	!Calculates the first n+1 basis functions at a point x, iterating on the
+ 	!Hermite polynomials rather than the basis functions themselves. NOT USED
+ 	!IN THE CUBE DECOMPOSITION.
+ 		
+ 	  real(8), intent(in) ::x
+ 	  integer, intent(in) ::n
+ 	  real(8), intent(in) ::b
+ 	  real(8)			   :: Base(n+1),p(n+1)
+ 	  
+    
+ 	  call phi(x/b,n,p)
+ 	  Base = b**(-1.d0/2.d0) * p
+ 	end subroutine
+  
+  !----------------------------------------------------------------------
+ 	  ! Integrals
+  !----------------------------------------------------------------------	  
+ 	subroutine Integral(a,b,beta,n,Ints)
+ 	!Calculates the first n+1 Integral factors from Fluke et. al. for a given
+ 	!a and b. NOT USED IN CUBE DECOMPOSITION.
+ 	
+ 	  real(8), intent(in)  ::a,b,beta
+ 	  integer, intent(in)  ::n
+ 	  
+ 	  integer              ::i
+ 	  real(8)              ::a_basis(n+1),b_basis(n+1)
+ 	  real(8), intent(out) ::Ints(n+1)
+ 	  real(8)				:: derf
+ 	  
+ 	  call basis(a,n,beta,a_basis)
+ 	  call basis(b,n,beta,b_basis)
+ 	  
+ 	  Ints(1) = (beta*pi**0.5d0 /2.d0)**(0.5d0) * (derf(b/(beta*sqrt(2.d0)))&
+ 	  &-derf(a/(beta*sqrt(2.d0))))
+ 	  
+ 	  Ints(2) = -sqrt(2.d0)*beta*(b_basis(1)-a_basis(1))
+ 	  
+ 	  do i=3,n+1
+ 	    Ints(i) = -beta*sqrt(2.d0/n)*(b_basis(i-1)-a_basis(i-1))+&
+ 	                &sqrt((i-1)/real(i))*Ints(i-2)
+ 	  end do
+ 	end subroutine
 
   !----------------------------------------------------------------------
  	  ! cube_ints - finds the integrals necessary for a cube
@@ -112,13 +165,12 @@ module shapelets
  	!specified beforehand. THIS IS NOT WORKING PROPERLY PROBABLY BECAUSE OF ERF.
  	
  	  integer, intent(in)  ::n,Ng
- 	  real(16), intent(in)	::x_max
+ 	  real(8), intent(in)	::x_max
  	  
  	  integer              ::i,j
- 	  real(8)              ::bases(Ng+1,n+1)
+ 	  real(8)              ::bases(Ng+1,n+1),a,b
  	  real(8), intent(out) ::Ints(Ng,n+1)
- 	  real(16)				:: x_a, x_b, erf_a, erf_b, a, b
-
+ 	  
  	  do i=1,Ng+1
  	  	a = -x_max + (i-1)*2.d0*x_max/Ng
  	  	call basis_vector(a,n,bases(i,:))
@@ -126,27 +178,23 @@ module shapelets
  	  
  	  do i=1,Ng
  	  	a = -x_max + (i-1)*2.d0*x_max/Ng
- 	  	b = a + 2.d0*x_max/Ng 	 
- 	  	x_a = a/(beta_c*sqrt(2.d0))
- 	  	x_b = b/(beta_c*sqrt(2.d0))
- 	  	
- 	  	erf_a = erf(x_a)
- 	  	erf_b = erf(x_b)
-		write(*,'(A9,es28.20)') "erf(a) = ", log(erf_a)
-		write(*,'(A9,es28.20)') "erf(b) = ", log(erf_b)
+ 	  	b = a + 2.d0*x_max/Ng 	  
+		write(*,*) "erf(a) = ", derf(a/(beta*sqrt(2.d0)))
+		write(*,*) "erf(b) = ", derf(b/(beta*sqrt(2.d0)))
 		
- 	  	Ints(i,1) = (beta_c*pi**0.5d0 /2.d0)**(0.5d0) * (erf_b-erf_a)
+ 	  	Ints(i,1) = (beta*pi**0.5d0 /2.d0)**(0.5d0) * &
+ 	  				&(derf(b/(beta*sqrt(2.d0)))-derf(a/(beta*sqrt(2.d0))))
 		  
-		Ints(i,2) = -sqrt(2.d0)*beta_c*(bases(i+1,1)-bases(i,1))
+		Ints(i,2) = -sqrt(2.d0)*beta*(bases(i+1,1)-bases(i,1))
  	  
 		do j=3,n+1
- 	    	Ints(i,j) = -beta_c*sqrt(2.d0/n)*(bases(i+1,j-1)-bases(i,j-1))+&
+ 	    	Ints(i,j) = -beta*sqrt(2.d0/n)*(bases(i+1,j-1)-bases(i,j-1))+&
  	                &sqrt((i-1)/real(i))*Ints(i,j-2)
  	    end do
  	  end do
  	  
  	  do i=1,n+1
- 	  	write(*,'(es28.20)')Ints(1,i)
+ 	  	write(*,*)Ints(1,i)
  	  end do
  	  	
  	end subroutine
@@ -156,10 +204,10 @@ module shapelets
  	  	  ! This follows strictly the algorithm and optimization layed out
  	  	  ! in Fluke et. al.
   !----------------------------------------------------------------------	 	 
- 	subroutine coeff_cube(f,Ng,x_max_8,cube)
+ 	subroutine coeff_cube(f,Ng,x_max,cube)
  	  integer, intent(in)   :: Ng
  	  real(8), intent(in)   :: f(Ng,Ng,Ng)
- 	  real(8), intent(in)   :: x_max_8
+ 	  real(8), intent(in)   :: x_max
  	  
  	  
  	  real(8), intent(out)  :: cube((Ng-3)/2+1,(Ng-3)/2+1,(Ng-3)/2+1)
@@ -167,18 +215,17 @@ module shapelets
  	  real(8)				 ::Ints(Ng,(Ng-3)/2+1)
  	  real(8)               ::dx
  	  integer               ::i,j,k,nmax,ii,jj,kk
- 	  real(16)				 :: x_max
- 	  
- 	  x_max = x_max_8
+
+
  	  dx = 2.d0*x_max/Ng
  	  nmax = (Ng-3)/2
- 	  beta_c = x_max/sqrt(2.0d0*Ng)
+ 	  beta = x_max/sqrt(2.0d0*Ng)
 
  	  write(*,*) "x_max = ", x_max
  	  write(*,*) "Ng = ", Ng
  	  write(*,*) "nmax = ", nmax
  	  write(*,*) "dx = ", dx
- 	  write(*,*) "beta = ", beta_c
+ 	  write(*,*) "beta = ", beta
  	  
  	  cube = 0.0d0
  	  call cube_ints(x_max,Ng,nmax,Ints)
@@ -187,18 +234,18 @@ module shapelets
  	  do k=1,nmax+1
  	  	i=1
  	  	j=1
- 	  	!if (i+j+k .GT. nmax+1)then
- 	    !  		exit
- 	    !end if
+ 	  	if (i+j+k .GT. nmax+1)then
+ 	      		exit
+ 	    end if
  	    do j=1,nmax+1
  	    	i=1
- 	    	!if (i+j+k .GT. nmax+1)then
- 	       !		exit
- 	      	!end if
+ 	    	if (i+j+k .GT. nmax+1)then
+ 	      		exit
+ 	      	end if
  	      do i=1,nmax+1
- 	      	!if (i+j+k .GT. nmax+1)then
- 	      !		exit
- 	      	!end if
+ 	      	if (i+j+k .GT. nmax+1)then
+ 	      		exit
+ 	      	end if
  	      	do kk=1,Ng
  	      	  do jj = 1,Ng
  	      	    do ii = 1,Ng
@@ -223,8 +270,7 @@ module shapelets
   	  	real(8), intent(out) :: cube(Ng,Ng,Ng)
   	  	
   	  	integer	:: i,j,k,ii,jj,kk
-  	  	real(8)	:: bases(Ng,nmax+1)
-  	  	real(16)::x
+  	  	real(8)	:: bases(Ng,nmax+1),x
   	  	
   	  	
   	  	cube = 0.0d0
@@ -240,18 +286,18 @@ module shapelets
   	  				do kk = 1,nmax+1
   	  					jj=1
   	  					ii=1
-  	  					!if (ii+jj+kk .GT. nmax+1)then
-  	  				!		exit
-  	  				!	end if
+  	  					if (ii+jj+kk .GT. nmax+1)then
+  	  						exit
+  	  					end if
   	  					do jj = 1,nmax+1
   	  						ii=1
-  	  				!		if (ii+jj+kk .GT. nmax+1)then
-  	  				!			exit
-  	  				!		end if	
+  	  						if (ii+jj+kk .GT. nmax+1)then
+  	  							exit
+  	  						end if	
   	  						do ii = 1,nmax+1
-  	  				!		if (ii+jj+kk .GT. nmax+1)then
-  	  				!			exit
-  	  				!		end if
+  	  						if (ii+jj+kk .GT. nmax+1)then
+  	  							exit
+  	  						end if
   	  							cube(i,j,k) = cube(i,j,k) + &
   	  								& f(ii,jj,kk)*bases(i,ii)*&
   	  								&bases(j,jj)*bases(k,kk)
@@ -273,16 +319,16 @@ module shapelets
   	  	!with beta = 1, n=(0,0,0), (0,1,0),(2,0,2),(1,2,4).
   	  		
   	  	integer, intent(in)	::Ng
-  	  	real(16), intent(out)::cube_0(Ng,Ng,Ng), cube_1(Ng,Ng,Ng)
-  	  	real(16), intent(out)::cube_2(Ng,Ng,Ng), cube_3(Ng,Ng,Ng)
+  	  	real(8), intent(out)::cube_0(Ng,Ng,Ng), cube_1(Ng,Ng,Ng)
+  	  	real(8), intent(out)::cube_2(Ng,Ng,Ng), cube_3(Ng,Ng,Ng)
   	  	
-  	  	real(16)		:: x_max, x 
+  	  	real(8)		:: x_max, x 
   	  	real(8)		:: base(5,Ng)
   	  	integer		::i,j,k
   	  	
   	  	
   	  	x_max = 3.d0
-  	  	beta_c = 1.d0
+  	  	beta = 1.d0
   	  	
   	  	cube_0 = 0.0d0
   	  	cube_1 = 0.0d0
@@ -308,49 +354,14 @@ module shapelets
   	  end subroutine
 end module
  	  
-!	SUBROUTINE CERROR(Z,CER,acc)
-!
-!       ====================================================
-!       Purpose: Compute error function erf(z) for a complex
-!                argument (z=x+iy)
-!       Input :  z   --- Complex argument
-!       Output:  CER --- erf(z)
-!       ====================================================
-!
-!	IMPLICIT COMPLEX(16)	:: (C,Z)
-!	real(16) 				:: A0,PI
-!	A0=CDABS(Z)
-!	C0=CDEXP(-Z*Z)
-!	PI=3.141592653589793D0
-!	Z1=Z
-!	IF (REAL(Z).LT.0.0) THEN
-!	   Z1=-Z
-!	ENDIF
-!	IF (A0.LE.5.8D0) THEN    
-!	   CS=Z1
-!	   CR=Z1
-!	   DO K=1,120
-!	      CR=CR*Z1*Z1/(K+0.5D0)
-!	      CS=CS+CR
-!	      IF (CDABS(CR/CS).LT.1.0D-15)then
-!	      	  GOTO 15
-!	      end if
-!	   end do
-!15         CER=2.0D0*C0*CS/DSQRT(PI)
-!	ELSE                              
-!	   CL=1.0D0/Z1              
-!	   CR=CL
-!	   DO 20 K=1,13
-!	      CR=-CR*(K-0.5D0)/(Z1*Z1)
-!	      CL=CL+CR
-!	      IF (CDABS(CR/CL).LT.1.0D-15)then
-!	      	  GOTO 25
-!	      end if
-!	   end do
-!25         CER=1.0D0-C0*CL/DSQRT(PI)
-!	ENDIF
-!	IF (REAL(Z).LT.0.0) THEN
-!	   CER=-CER
-!	ENDIF
-!	RETURN
-!	END
+ 	  
+ 	  
+ 	  
+ 	  
+ 	  
+ 	  
+ 	  
+ 	  
+ 	  
+ 	  
+ 	  

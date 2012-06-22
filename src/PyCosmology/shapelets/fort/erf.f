@@ -1,20 +1,20 @@
-      FUNCTION external erf(x)
-      REAL erf,x
+      FUNCTION derf(x)
+      REAL*8 derf,x
 CU    USES gammp
-      REAL gammp
+      REAL*8 gammp
       if(x.lt.0.)then
-        erf=-gammp(.5,x**2)
+        derf=-gammp(.5d0,x**2)
       else
-        erf=gammp(.5,x**2)
+        derf=gammp(.5d0,x**2)
       endif
       return
       END
 
       
       FUNCTION gammp(a,x)
-      REAL a,gammp,x
+      REAL*8 a,gammp,x
 CU    USES gcf,gser
-      REAL gammcf,gamser,gln
+      REAL*8 gammcf,gamser,gln
       if(x.lt.0..or.a.le.0.)pause 'bad arguments in gammp'
       if(x.lt.a+1.)then
         call gser(gamser,a,x,gln)
@@ -28,11 +28,11 @@ CU    USES gcf,gser
 
       SUBROUTINE gcf(gammcf,a,x,gln)
       INTEGER ITMAX
-      REAL a,gammcf,gln,x,EPS,FPMIN
-      PARAMETER (ITMAX=100,EPS=3.e-7,FPMIN=1.e-30)
+      REAL*8 a,gammcf,gln,x,EPS,FPMIN
+      PARAMETER (ITMAX=500,EPS=3.e-22,FPMIN=1.e-30)
 CU    USES gammln
       INTEGER i
-      REAL an,b,c,d,del,h,gammln
+      REAL*8 an,b,c,d,del,h,gammln
       gln=gammln(a)
       b=x+1.-a
       c=1./FPMIN
@@ -57,11 +57,11 @@ CU    USES gammln
       
       SUBROUTINE gser(gamser,a,x,gln)
       INTEGER ITMAX
-      REAL a,gamser,gln,x,EPS
-      PARAMETER (ITMAX=100,EPS=3.e-7)
+      REAL*8 a,gamser,gln,x,EPS
+      PARAMETER (ITMAX=500,EPS=3.e-22)
 CU    USES gammln
       INTEGER n
-      REAL ap,del,sum,gammln
+      REAL*8 ap,del,sum,gammln
       gln=gammln(a)
       if(x.le.0.)then
         if(x.lt.0.)pause 'x < 0 in gser'
@@ -83,8 +83,8 @@ CU    USES gammln
       END
 
       
-            FUNCTION gammln(xx)
-      REAL gammln,xx
+      FUNCTION gammln(xx)
+      REAL*8 gammln,xx
       INTEGER j
       REAL*8 ser,stp,tmp,x,y,cof(6)
       SAVE cof,stp

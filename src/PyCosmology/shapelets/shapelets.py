@@ -11,6 +11,7 @@ import numpy as np
 from scipy.misc import comb
 import matplotlib.pyplot as plt
 import os, errno
+from bigfloat import erf
 #import matplotlib
 #matplotlib.use("Qt4Agg")
 #import matplotlib.pyplot as plt
@@ -113,8 +114,8 @@ class ShapeletOperations_DMH(object):
                 hist = np.log10(1.0+simops.massarr[1]*hist)
                 self.hist= self.hist + [hist]
     
-                self.coefficients = self.coefficients + [np.asfortranarray(fc.coeff_cube(np.asfortranarray(hist),x_max))]
-                self.beta = self.beta+[fc.beta]
+                self.coefficients = self.coefficients + [np.asfortranarray(fc.coeff_cube(np.asfortranarray(hist),x_max.astype(np.float128)))]
+                self.beta = self.beta+[x_max/np.sqrt(2*bins)]
                 
         else:
             self.test_sphere()
@@ -279,7 +280,15 @@ class ShapeletOperations_DMH(object):
             self.InertiaTens = self.InertiaTens + [tensor]  
             
             print tensor
+    def Triaxiality(self):
+        """
+        Calculate the triaxiality from the appendix of Fluke
+        """
+        self.triax_shape = []
+        for inertia in self.InertiaTens:
+            self.triax_shape = self.triax_shape +[(inertia[1,1]-inertia[0,0])/(inertia[2,2]-inertia[0,0])]
             
+        print self.triax_shape
     def PeakSN(self):
         """
         Calculate the peak signal to noise ratio for each group

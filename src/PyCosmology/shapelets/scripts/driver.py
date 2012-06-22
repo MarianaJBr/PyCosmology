@@ -37,7 +37,12 @@ if __name__ == '__main__':
         sh.InertiaTensor()
         sub_final = time.time()
         print "  Moment of Inertia time: ", sub_final - sub_initial
-                
+ 
+        sub_initial = time.time()
+        sh.Triaxiality()
+        sub_final = time.time()
+        print "  Triaxiality time: ", sub_final - sub_initial
+                       
         print sh.coefficients
         if config.reconstruct:
             sub_initial = time.time()
