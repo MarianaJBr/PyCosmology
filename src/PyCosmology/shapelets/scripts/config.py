@@ -19,9 +19,10 @@ class config(object):
     bins = 51
     
     reconstruct = True
-    smoothing_scale = 7
+    smoothing_scale = 5
     resolution = 200
-    test = False
+    test = True
     
     basis_test = False
     n_test = 51
+    int_test = False

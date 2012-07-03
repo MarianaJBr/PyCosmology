@@ -10,14 +10,10 @@ if __name__ == '__main__':
     import time
     
     initial = time.time()
-    sh = shops(config.sim_file,config.groups_file,config.ids_file,config.n_groups,config.reverse,config.test,config.basis_test,config.n_test)
+    sh = shops(config.sim_file,config.groups_file,config.ids_file,config.n_groups,config.reverse,config.bins,config.reconstruct,
+               config.test,config.basis_test,config.n_test,config.int_test)
     
-    if not config.basis_test:
-        sub_initial = time.time()
-        sh.find_coeffs(config.bins)
-        sub_final = time.time()
-        print "  Coefficient finding time: ", sub_final - sub_initial
-        
+    if not config.basis_test:      
         sub_initial = time.time()
         sh.zeroth_moment()
         sub_final = time.time()
@@ -46,12 +42,7 @@ if __name__ == '__main__':
         print sh.coefficients
         if config.reconstruct:
             sub_initial = time.time()
-            sh.reconstruct(config.bins)
-            sub_final = time.time()
-            print "  Reconstruction time: ", sub_final - sub_initial
-            
-            sub_initial = time.time()
-            sh.DensityPlotCompare(config.smoothing_scale, config.resolution)
+            sh.DensityPlotCompare(config.smoothing_scale, config.bins)
             sub_final = time.time()
             print "  Density Plotting time: ", sub_final - sub_initial 
     

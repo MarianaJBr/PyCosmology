@@ -20,6 +20,10 @@ module SimOps
 	real(8)  ::massarr(6), time, BoxSize,OmegaLambda
 	real(8)	 ::HubbleParam,Omega0, Redshift
 	
+	integer		:: ngroups
+	real		:: axis_ratio_b, axis_ratio_c, axis_ratio_d
+	logical		:: loud = .FALSE.
+	
 	contains
 
 
@@ -68,21 +72,14 @@ module SimOps
   !----------------------------------------------------------------------
  	  ! find_groups - establish which objects belong to which groups.
   !----------------------------------------------------------------------
-    subroutine find_groups(filename,ids_file,loud)  
+    subroutine find_groups(filename,ids_file)  
     
-    	integer 			:: ngroups, k, ntot, group_offset, group_size
+    	integer 			:: k, ntot, group_offset, group_size
     	character(len=*)	:: filename,ids_file
-    	logical, intent(in), optional	::loud
     	
     	integer				::offset_pos(1), group_ID, i
-    	logical				::temp_loud
+
     	
-    	
-    	if (present(loud)) then
-    		temp_loud = loud
-    	else
-    		temp_loud = .False.
-    	end if
     	
     	open(1,file=filename,status='unknown',form='unformatted')
     	          
@@ -111,19 +108,19 @@ module SimOps
     
     ! Locate Largest Group/Halo and save properties.
         do k = 1,ngroups
-        	if(temp_loud)then
+        	if(loud)then
         		write(*,*) "Calculating characteristics of group", k
         	end if
           offset_pos = maxloc(grouplen)
           group_offset = groupoffset(offset_pos(1))
           group_size = maxval(grouplen)
-          if (temp_loud)then
+          if (loud)then
           	  write(*,*) "Group Size: ", group_size
           end if
 
 
 
-          if (temp_loud) then
+          if (loud) then
           	  write(*,*) "Specifying group particles"
           end if
           
@@ -163,13 +160,16 @@ module SimOps
   			temp_mode = 1
   		end if
   		
+
+  		
         centre_of_density = g_pos(:,1)
         ! Re-centre the group around the centre of density
         call ReCentre(g_pos, real(BoxSize),centre_of_density)
         
+        if (loud) then
         write(*,"(A7,3es20.8,A1)") "CoD = (",&
                                     &centre_of_density,")"
-        
+        end if
         if (temp_mode == 2) then
         	
 			c_o_m(:) = 0.000
@@ -179,7 +179,9 @@ module SimOps
 			  c_o_m(3) = c_o_m(3) + g_pos(3,i)
 			end do
 			c_o_m(:) = c_o_m(:)/real(n)
+			if (loud)then
 			write(*,"(A27,3es20.8,A1)") "Centre of Mass of group = (", c_o_m,")"
+			end if
 			! Re-centre the group around the centre
 				call ReCentre(g_pos, real(BoxSize),c_o_m)
 		end if
@@ -192,7 +194,9 @@ module SimOps
 				call ReCentre(g_pos, real(BoxSize),equal_centre)
 		end if
 		
+		if (loud) then
         write(*,*) "Group Re-centred"
+        end if
      end subroutine
      
             
@@ -204,33 +208,41 @@ module SimOps
 		integer, intent(in)	::n
 		real, intent(inout)	::g_pos(3,n), g_vel(3,n)
 		real, intent(in)	::u(3),theta
+
 		
 		integer	   :: nrot, i
     	real      :: IT(3,3), eigval(3), pos_r(3,n)
-		real      :: eigvec(3,3),axis_ratio_b, axis_ratio_c, bin_size
-	
+		real      :: eigvec(3,3),bin_size
+
 		
             ! Calculate the Moment of Inertia tensor
             IT = Inertia(real(massarr(2)),g_pos)
+            if (loud) then
             write(*,*) "Moment of Inertia calculated"
           
              write(*,*) "Moment of Inertia tensor:"
              do i=1,3
                 write(*,*) IT(i,:)
              end do
+             end if
              
             ! Diagonalize Inertia Tensor
               call jacobi(IT,3,3,eigval,eigvec,nrot)
+              if (loud) then
               write(*,*) "Moment of Inertia tensor diagonalized"
-            
+              end if
             ! Re-order the eigs
               call EigOrder(eigval,eigvec)
               
             ! Return the ratios of axes
               axis_ratio_b = sqrt(eigval(2)/eigval(1))
               axis_ratio_c = sqrt(eigval(3)/eigval(1))
+              axis_ratio_d = sqrt(eigval(3)/eigval(2))
+              if (loud) then
               write(*,*) "Ratio of axes lengths b/a = ", axis_ratio_b
               write(*,*) "Ratio of axes lengths c/a = ", axis_ratio_c
+              write(*,*) "Ratio of axes lengths c/b = ", axis_ratio_d
+              end if
               
             ! Project data into co-ordinates defined by
                 ! xbar = eigvec(1)*(x,y,z)
@@ -256,11 +268,11 @@ module SimOps
    	subroutine	density_profile(g_pos, n,bins,min_bin,dens,bin_edges)
    		integer, intent(in)	::n, bins
    		real, intent(in)	::g_pos(3,n),min_bin
-   		
+
    		real, intent(out)				::bin_edges(bins+1),dens(bins)
    		real							::r(n), vol(bins)
    		integer							::i
-   		
+
        ! Calculate radii from c_o_m/c_o_d (to make density profiles)
          do i=1,n
            r(i) = sqrt(g_pos(1,i)**2 + g_pos(2,i)**2+ g_pos(3,i)**2)
@@ -275,7 +287,9 @@ module SimOps
          end do
          
          dens(:) = dens(:)/vol(:)
+         if (loud) then
          write(*,*)"Calculated spherically symmetric density profile"
+         end if
      end subroutine
          
   

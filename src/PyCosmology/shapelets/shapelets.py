@@ -11,7 +11,6 @@ import numpy as np
 from scipy.misc import comb
 import matplotlib.pyplot as plt
 import os, errno
-from bigfloat import erf
 #import matplotlib
 #matplotlib.use("Qt4Agg")
 #import matplotlib.pyplot as plt
@@ -23,7 +22,8 @@ class ShapeletOperations_DMH(object):
     results based on this.
     """
     
-    def __init__(self,sim_file,groups_file,group_ids_file, n=1,reverse=False,test=False,basis_test=False,n_test=51):
+    def __init__(self,sim_file,groups_file,group_ids_file, n=1,reverse=False,bins=51,reconstruct=True,
+                 test=False,basis_test=False,n_test=51,int_test=False):
         """
         Read in a sim-file for use with the shapelet analysis.
         
@@ -35,7 +35,8 @@ class ShapeletOperations_DMH(object):
         n: optional, default 1, number of groups to retain for further analysis (from largest to smallest)
         reverse: optional, default False, whether to use the n SMALLEST groups rather than largest.
         """
-        
+        self.n = n
+        self.int_test = int_test
         if basis_test:
             self.test_bases(n_test)
             return
@@ -51,11 +52,13 @@ class ShapeletOperations_DMH(object):
             else:
                 self.groups_pos = self.groups_pos + [np.asfortranarray(simops.pos[:,simops.group_number == np.max(simops.group_number)-i])]
             
-            simops.centre(self.groups_pos[i],mode=3)
+            simops.centre(self.groups_pos[i],mode=1)
             simops.rotate(self.groups_pos[i],self.groups_pos[i],[0.0,0.0,0.0],0.0)
             
         self.make_directories(sim_file)
 
+        self.shapelets_main(bins, reconstruct)
+        
     def make_directories(self,filename):
         """
         Makes a simple directory structure to store images etc.
@@ -90,56 +93,79 @@ class ShapeletOperations_DMH(object):
         except OSError, e:
             if e.errno != errno.EEXIST:
                 raise
-          
+
+        self.test_plot_dir = "TestPlots"
+        try:
+            os.makedirs(self.test_plot_dir)
+        except OSError, e:
+            if e.errno != errno.EEXIST:
+                raise          
  
-    def find_coeffs(self,bins):
+    def shapelets_main(self,bins, reconstruct):
         """
-        Finds the coefficients for the shapelets
+        Finds the coefficients for the shapelets and do reconstruction
         """
         
         print "FINDING SHAPELET COEFFICIENTS"
+
         self.coefficients = []
         self.beta = []
-        self.nmax = (bins-3)/2
-        self.hist = []
+        self.group_density = []
         self.x_max = []
+        self.ints = []
+        self.rebuilt = []
+        self.nmax = []
+        
         if not self.test:
             for group in self.groups_pos:
-                x_max = 2.0*np.max(group[0,:])
-                self.x_max = self.x_max + [x_max]
+                x_max = 1.5*np.max(group)
+                
     
                 hist,edges = np.histogramdd(group.T,bins=bins,range=[[-x_max,x_max],[-x_max,x_max],[-x_max,x_max]])
                 del edges
     
                 hist = np.log10(1.0+simops.massarr[1]*hist)
-                self.hist= self.hist + [hist]
-    
-                self.coefficients = self.coefficients + [np.asfortranarray(fc.coeff_cube(np.asfortranarray(hist),x_max.astype(np.float128)))]
-                self.beta = self.beta+[x_max/np.sqrt(2*bins)]
                 
-        else:
-            self.test_sphere()
-            x_max = 2.0
-            self.x_max = self.x_max + [x_max]
-    
-            hist,edges = np.histogramdd(self.test_group,bins=bins,range=[[-x_max,x_max],[-x_max,x_max],[-x_max,x_max]])
-            del edges
-    
-            hist = np.log10(1.0+simops.massarr[1]*hist)
-            self.hist= self.hist + [hist]
-    
-            self.coefficients = self.coefficients + [np.asfortranarray(fc.coeff_cube(np.asfortranarray(hist),x_max))]
-            self.beta = self.beta+[fc.beta]            
+                fc.shapelet_driver(np.asfortranarray(hist),x_max, reconstruct, bins)
 
-    def reconstruct(self,bins):
-        """
-        Reconstructs the 'original' data using the basis functions and amplitudes
-        """
-        
-        print "RECONSCTRUCTING GROUP DENSITY"
-        self.rebuilt = []
-        for i,coefficients in enumerate(self.coefficients):
-            self.rebuilt = self.rebuilt + [fc.reconstruct_cube(bins,coefficients,(-self.x_max[i],self.x_max[i]))]
+                self.beta = self.beta+[fc.beta_c]
+                self.ints = self.ints +[fc.ints]
+                self.x_max = self.x_max + [x_max]
+                self.group_density = self.group_density + [hist]
+                self.coefficients = self.coefficients + [fc.coeffs]
+                self.nmax = self.nmax + [fc.nmax]
+                
+                if reconstruct:
+                    self.rebuilt = self.rebuilt + [fc.recon]
+        else:
+            cube0,cube1,cube2,cube3 = fc.test(bins)
+            x_max =  1.5
+            print "CUBE0"
+            print cube0
+            #hist,edges = np.histogramdd(np.asfortranarray(cube0),bins=bins,range=[[-x_max,x_max],[-x_max,x_max],[-x_max,x_max]])
+            #del edges
+    
+            #hist = np.log10(1.0+simops.massarr[1]*hist)
+            print cube0.shape
+            hist = np.asfortranarray(cube0)
+            print hist.shape
+            #hist[bins/2,bins/2,bins/2] = 1.0
+            
+            fc.shapelet_driver(np.asfortranarray(cube0),x_max, reconstruct, bins)
+            
+
+            self.beta = self.beta+[fc.beta_c]
+            self.ints = self.ints +[fc.ints]
+            self.x_max = self.x_max + [x_max]
+            self.group_density = self.group_density + [hist]
+            self.coefficients = self.coefficients + [fc.coeffs]
+            self.nmax = self.nmax + [fc.nmax]
+                
+            if reconstruct:
+                self.rebuilt = self.rebuilt + [fc.recon]
+
+        if self.int_test:
+            self.test_ints(bins)
             
                             
     def zeroth_moment(self):
@@ -149,12 +175,12 @@ class ShapeletOperations_DMH(object):
         
         print "CALCULATING ZEROTH MOMENT"
         self.M_0 = []
-        a = np.arange(0,self.nmax,2)
+        
 
         
         for i,coeff in enumerate(self.coefficients):
             self.M_0 = self.M_0+[0.0]
-
+            a = np.arange(0,self.nmax[i],2)
             for n1 in a:
                 for n2 in a:
                     for n3 in a:
@@ -193,10 +219,11 @@ class ShapeletOperations_DMH(object):
         
         print "CALCULATING CENTROID"
         self.centroid = []
-        a = np.arange(0,self.nmax,2)
-        b = np.arange(1,self.nmax,2)
+        
         
         for i,coeff in enumerate(self.coefficients):
+            a = np.arange(0,self.nmax[i],2)
+            b = np.arange(1,self.nmax[i],2)
             x1,y1,z1 = (0.0,0.0,0.0)
             for n1 in b:
                 for n2 in a:
@@ -227,10 +254,10 @@ class ShapeletOperations_DMH(object):
         Calculates the rms radius defined in Fluke. et. al.
         """
         print "Calculating RMS Radius Value"
-        a = np.arange(0,self.nmax,2)
         
         self.rms = []
         for i,beta in enumerate(self.beta):
+            a = np.arange(0,self.nmax[i],2)
             rms = 0.0
             for n1 in a:
                 for n2 in a:
@@ -249,15 +276,16 @@ class ShapeletOperations_DMH(object):
         
         print "Calculating the Moment of Inertia Tensor via shapelet coefficients."
         self.InertiaTens = []
-        a = np.arange(0,self.nmax,2)
-        b = np.arange(1,self.nmax,2)
         
         for i,beta in enumerate(self.beta):
             tensor = np.zeros((3,3))
-            
+
+            a = np.arange(0,self.nmax[i],2)
+            b = np.arange(1,self.nmax[i],2)            
             for n1 in a:
                 for n2 in a:
                     for n3 in a:
+
                         tensor[0,0] =  tensor[0,0] + self.coefficients[i][n1,n2,n3]*(n2+n3+1)*self.U(n1+n2+n3)*self.W(n1,n2,n3)
                         tensor[1,1] =  tensor[1,1] + self.coefficients[i][n1,n2,n3]*(n1+n3+1)*self.U(n1+n2+n3)*self.W(n1,n2,n3)
                         tensor[2,2] =  tensor[2,2] + self.coefficients[i][n1,n2,n3]*(n2+n1+1)*self.U(n1+n2+n3)*self.W(n1,n2,n3)
@@ -295,7 +323,7 @@ class ShapeletOperations_DMH(object):
         """
         self.Ps = []
             
-        for i,cube in enumerate(self.hist):
+        for i,cube in enumerate(self.group_density):
             self.Ps = self.Ps + [20*np.log10(np.max(cube)/np.sqrt(self.MSError[i]))]
             
             print "Peak Signal to noise: ", self.Ps[i]  
@@ -306,7 +334,7 @@ class ShapeletOperations_DMH(object):
         """
         self.MSError = []
         
-        for i,cube in enumerate(self.hist):
+        for i,cube in enumerate(self.group_density):
             ms = 0.0
             for j in range(cube.shape[0]):
                 for k in range(cube.shape[0]):
@@ -323,7 +351,7 @@ class ShapeletOperations_DMH(object):
         """
         print "Doing overall comparison of reconstruction."
         self.compare = []
-        for i,cube in enumerate(self.hist):
+        for i,cube in enumerate(self.group_density):
             sum_I = np.sum(cube)
             sum_S = np.sum(self.rebuilt[i])
             compare = sum_S/sum_I -1.0
@@ -337,7 +365,7 @@ class ShapeletOperations_DMH(object):
         """
         print "PLOTTING DENSITY MAPS FOR COMPARISON"
         if not self.test:
-            for i,group in enumerate(self.groups_pos):
+            for i,group in enumerate(self.group_density):
                 plt.clf()
                 plt.figure()
                 plt.suptitle("Density Field for Group "+str(i))
@@ -346,18 +374,19 @@ class ShapeletOperations_DMH(object):
                 #window_size = np.ceil(smoothing_scale*resolution)
                 x = group[0,:]
                 y = group[1,:]
-                binned_data = np.log10(np.histogram2d(x,y, resolution,normed=True)[0]+1.0)
-                re_ordered_data = np.transpose(np.fliplr(binned_data))
+                #binned_data = np.log10(np.histogram2d(x,y, resolution,normed=True)[0]+1.0)
+                #re_ordered_data = np.transpose(np.fliplr(binned_data))
                 #print re_ordered_data.shape
                 #smoothed_data = plotting.sgolay2d(re_ordered_data,window_size=window_size,order=4)
-                plt.imshow(re_ordered_data,extent=(min(x),max(x),min(y),max(y)),interpolation="Gaussian",aspect='equal')
+                density = np.sum(group,axis=2)
+                plt.imshow(np.transpose(np.fliplr(density)),extent=(-self.x_max[i],self.x_max[i],-self.x_max[i],self.x_max[i]),interpolation="Gaussian",aspect='equal')
                 
                 plt.subplot(122)
                 plt.title("Reconstructed")
     
                 density = np.sum(self.rebuilt[i],axis=2)
                 #smoothed_data = plotting.sgolay2d(re_ordered_data,window_size=window_size,order=4)
-                plt.imshow(density,interpolation="Gaussian",aspect='equal',extent=(-self.x_max[i],self.x_max[i],-self.x_max[i],self.x_max[i]))
+                plt.imshow(np.transpose(np.fliplr(density)),interpolation="Gaussian",aspect='equal',extent=(-self.x_max[i],self.x_max[i],-self.x_max[i],self.x_max[i]))
                 plt.show()
             
   
@@ -369,20 +398,23 @@ class ShapeletOperations_DMH(object):
             plt.subplot(121)
             plt.title("Original")
                 #window_size = np.ceil(smoothing_scale*resolution)
-            x = np.array(self.test_group[0])
-            y = np.array(self.test_group[1])
-            binned_data = np.log10(np.histogram2d(x,y, resolution,normed=True)[0]+1.0)
-            re_ordered_data = np.transpose(np.fliplr(binned_data))
+            #x = np.array(self.test_group[0])
+            #y = np.array(self.test_group[1])
+            #binned_data = np.log10(np.histogram2d(x,y, resolution,normed=True)[0]+1.0)
+            #re_ordered_data = np.transpose(np.fliplr(binned_data))
                 #print re_ordered_data.shape
                 #smoothed_data = plotting.sgolay2d(re_ordered_data,window_size=window_size,order=4)
-            plt.imshow(re_ordered_data,extent=(min(x),max(x),min(y),max(y)),interpolation="Gaussian",aspect='equal')
+            density = np.sum(self.group_density[0],axis=2)
+            print density.shape
+            
+            plt.imshow(np.transpose(np.fliplr(density)),extent=(-self.x_max[0],self.x_max[0],-self.x_max[0],self.x_max[0]),interpolation="Gaussian",aspect='equal')
                 
             plt.subplot(122)
             plt.title("Reconstructed")
     
             density = np.sum(self.rebuilt[0],axis=2)
                 #smoothed_data = plotting.sgolay2d(re_ordered_data,window_size=window_size,order=4)
-            plt.imshow(density,interpolation="Gaussian",aspect='equal',extent=(-self.x_max[0],self.x_max[0],-self.x_max[0],self.x_max[0]))                    
+            plt.imshow(np.transpose(np.fliplr(density)),interpolation="Gaussian",aspect='equal',extent=(-self.x_max[0],self.x_max[0],-self.x_max[0],self.x_max[0]))                    
             plt.savefig(self.reconstruct_compare_dir+'/TEST_GROUP')
 
         
@@ -442,4 +474,33 @@ class ShapeletOperations_DMH(object):
         plt.imshow(cube3[:,:,n_test/2], interpolation='bilinear', origin='lower',
                         extent=(-3,3,-3,3))
         plt.contour(cube3[:,:,n_test/2],origin='lower',linewidths=2,extent=(-3,3,-3,3))
-        plt.savefig('/Users/Steven/Documents/cube_3_test')   
+        plt.savefig('/Users/Steven/Documents/cube_3_test')  
+        
+    def test_ints(self,bins):
+        """
+        Test the Integral factors (actually the erf function really).
+        """
+        
+        for i,ints in enumerate(self.ints):
+            x_axis = np.linspace(-self.x_max[i], self.x_max[i], bins)
+            plt.clf()
+            plt.title("Integral Factors for various values of x")
+            for j in range(ints.shape[1]):
+                plt.plot(x_axis,ints[:,j],'r-')
+            plt.savefig(self.test_plot_dir+'/Int_0_cube_'+str(i))
+            
+        
+            
+            
+            
+            
+            
+            
+            
+            
+            
+            
+            
+            
+            
+            
