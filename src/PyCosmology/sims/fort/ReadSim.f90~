@@ -212,7 +212,7 @@ module SimOps
 		
 		integer	   :: nrot, i
     	real      :: IT(3,3), eigval(3), pos_r(3,n)
-		real      :: eigvec(3,3),bin_size
+		real      :: eigvec(3,3)
 
 		
             ! Calculate the Moment of Inertia tensor

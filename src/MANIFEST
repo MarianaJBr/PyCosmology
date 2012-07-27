@@ -10,6 +10,7 @@ PyCosmology/sims/__init__.py
 PyCosmology/sims/load.py
 PyCosmology/sims/plotting.py
 PyCosmology/sims/routines.py
+PyCosmology/sims/fort/Auxiliary.f90
 PyCosmology/sims/fort/ReadSim.f90
 PyCosmology/sims/fort/__init__.py
 PyCosmology/structure/CAMB_Config.py

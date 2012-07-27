@@ -15,9 +15,9 @@ class sims(object):
     A class to import simulation data and group data from gadget runs. Basic plotting/manipulation.
     """
     
-    def __init__(self,filename,group_filename=None,ids_filename=None,n_groups=1,reverse=False,centring_mode=None,loud=False):
+    def __init__(self,filename,group_filename=None,ids_filename=None,n_groups=1,reverse=False,centring_mode=None,loud=False,subgroup_filename=None):
         """
-        Imports the simulation and detects groups if specified.
+        Imports the simulation and detects groups and subgroups if specified.
         """
         fsims.loud = loud
         # readsim reads in the simulation and defines fsims.pos and fsims.vel amongst others.
@@ -31,27 +31,72 @@ class sims(object):
                 self.n_groups = fsims.ngroups
             else:
                 self.n_groups = n_groups
-            
+                
+            if subgroup_filename:
+                fsims.read_subgroupv(subgroup_filename)
+                self.subgroups_pos = []
+                
             self.groups_pos = []
             self.groups_vel = []
             self.axis_b = []
             self.axis_c = []
             self.axis_d = []
-            for i in range(self.n_groups):
+            self.original_group_centres = []
+            
+            for i in range(self.n_groups)+[-1]:
                 if not reverse:
                     self.groups_pos = self.groups_pos + [np.asfortranarray(fsims.pos[:,fsims.group_number == i+1])]
                     self.groups_vel = self.groups_vel + [np.asfortranarray(fsims.vel[:,fsims.group_number == i+1])]
                 else:
                     self.groups_pos = self.groups_pos + [np.asfortranarray(fsims.pos[:,fsims.group_number == np.max(fsims.group_number)-i])]
                     self.groups_vel = self.groups_vel + [np.asfortranarray(fsims.vel[:,fsims.group_number == np.max(fsims.group_number)-i])]
-            
-                fsims.centre(self.groups_pos[i],mode=centring_mode)
-                fsims.rotate(self.groups_pos[i],self.groups_vel[i],[0.0,0.0,0.0],0.0)
+                
+                self.original_group_centres = self.original_group_centres + [np.array(self.groups_pos[i])[:,0]]
+                if i!= -1: 
+                    fsims.centre(self.groups_pos[i],centring_mode)
+                    fsims.rotate(self.groups_pos[i],np.asfortranarray(self.groups_vel[i]),[0.0,0.0,0.0],0.0)
 
-                self.axis_b.append(float(fsims.axis_ratio_b))
-                self.axis_c.append(float(fsims.axis_ratio_c))
-                self.axis_d.append(float(fsims.axis_ratio_d))
-
+                    self.axis_b.append(float(fsims.axis_ratio_b))
+                    self.axis_c.append(float(fsims.axis_ratio_c))
+                    self.axis_d.append(float(fsims.axis_ratio_d))
+                
+                #Needs to be fixed for reverse as well.
+                self.subgroups_pos = self.subgroups_pos + [[]]
+                indices = list(set(fsims.subgroup_number[fsims.group_number == i+1]))
+                indices.sort(reverse=True)
+                for index in indices:
+                    self.subgroups_pos[i] = self.subgroups_pos[i] + [np.array(self.groups_pos[i])[:,fsims.subgroup_number[fsims.group_number == i+1]== index]]
+   
+   
+   
+            #if subgroup_filename:
+            ##    fsims.read_subgroupv(subgroup_filename)
+            #    self.subgroups_pos_temp = []
+            #    self.subgroups_vel_temp = []
+            #    for i in range(fsims.nsub):
+            #        if not reverse:
+            #            self.subgroups_pos_temp = self.subgroups_pos_temp + [fsims.pos[:,fsims.subgroup_number == i+1]]
+            #            self.subgroups_vel_temp = self.subgroups_vel_temp + [fsims.vel[:,fsims.subgroup_number == i+1]]
+            #    
+            #    self.subgroups_pos = []
+            #    for i in range(self.n_groups):
+            #        self.subgroups_pos = self.subgroups_pos + [[]]   
+            #    
+            #    for i in range(fsims.nsub):
+            #        if fsims.subparent[i]-1 > self.n_groups-1:
+            #            continue
+            #        
+            #        self.subgroups_pos[fsims.subparent[i]-1] = self.subgroups_pos[fsims.subparent[i]-1] + [self.subgroups_pos_temp[i]]
+            #        
+            #    for i in range(self.n_groups):
+            #        for j in range(len(self.subgroups_pos[i])):
+            #            print self.original_group_centres[i]
+            #            subgroup = np.asfortranarray(self.subgroups_pos[i][j])
+            #            fsims.centre(subgroup,0,def_centre=self.original_group_centres[i])
+            #            self.subgroups_pos[i][j] = subgroup
+            #else:
+            #    self.subgroups_pos = None
+                
         self.make_directories(filename)
         
     def make_directories(self,filename):
@@ -106,8 +151,10 @@ class sims(object):
         """
         print "Plotting Group Positions"
         for i,group in enumerate(self.groups_pos):
-            plotting.SpatialPlot(group[0,:],group[1,:],self.group_density_dir+'/group_'+str(i),smoothing='sgolay')
-            
+            if self.subgroups_pos:
+                plotting.SpatialPlot(group[0,:],group[1,:],self.group_density_dir+'/group_'+str(i),smoothing='dot',subgroups=self.subgroups_pos[i])
+            else:
+                plotting.SpatialPlot(group[0,:],group[1,:],self.group_density_dir+'/group_'+str(i),smoothing='dot')
     def plot_group_density_profile(self):
         """
         Convenience function for plotting the density profiles for all maintained groups.
@@ -200,18 +247,23 @@ class sims(object):
         """
         Calculates the distribution of centre of mass offsets (not right yet)
         """
-        
-        for i in range(self.n_groups):
-                if not reverse:
-                    self.groups_pos = self.groups_pos + [np.asfortranarray(fsims.pos[:,fsims.group_number == i+1])]
-                    self.groups_vel = self.groups_vel + [np.asfortranarray(fsims.vel[:,fsims.group_number == i+1])]
-                else:
-                    self.groups_pos = self.groups_pos + [np.asfortranarray(fsims.pos[:,fsims.group_number == np.max(fsims.group_number)-i])]
-                    self.groups_vel = self.groups_vel + [np.asfortranarray(fsims.vel[:,fsims.group_number == np.max(fsims.group_number)-i])]
+        print "Plotting Centre of Mass Offsets"
+        #for group in self.groups_pos:
+        fof_offset = []
+        sphere_offset = []   
+        for i,group in enumerate(self.groups_pos):
+            if i == len(self.groups_pos)-1:
+                continue
             
-                fsims.centre(self.groups_pos[i],mode=centring_mode)
-        
-        
+            fof_offset = fof_offset + [fsims.centre_of_mass_offset_fof(group)]
+            sphere_offset = sphere_offset + [fsims.centre_of_mass_offset_sphere(np.asfortranarray(self.original_group_centres[i]))]
+        print np.array(fof_offset).shape
+        print np.array(sphere_offset).shape
+        print fof_offset
+        print sphere_offset
+        plt.clf()
+        plt.plot(fof_offset,sphere_offset,'bo')
+        plt.savefig(self.group_stats_dir+"/Centre_of_Mass_Offsets.png")
         
         
         

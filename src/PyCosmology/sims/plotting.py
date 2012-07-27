@@ -92,14 +92,21 @@ def sgolay2d ( z, window_size, order, derivative=None):
         r = np.linalg.pinv(A)[2].reshape((window_size, -1))
         return scipy.signal.fftconvolve(Z, -r, mode='valid'), scipy.signal.fftconvolve(Z, -c, mode='valid')
 
-def SpatialPlot(x,y,filename,smoothing="dot",condition ="",smoothing_scale=0.05,resolution=300):
+def SpatialPlot(x,y,filename,smoothing="dot",condition ="",smoothing_scale=0.05,resolution=300,subgroups=None):
     """
     Plots the spatial positions of objects in two-dimensions, using smoothing if dictated.
     """
     plt.clf()
     if smoothing is"dot":
+        if subgroups:
+            colours = ['r','b','y','g','c','m']
         plt.title("Object Positions "+condition)
         plt.plot(x,y,'.',linewidth=0.01,markersize=0.01)
+        if subgroups:
+            for i,subgroup in enumerate(subgroups):
+                if i == len(subgroups)-1:
+                    continue
+                plt.plot(subgroup[0,:],subgroup[1,:],colours[np.mod(i,6)]+'x',linewidth=0.1,markersize=0.1)
         plt.axes().set_aspect('equal', 'datalim')
         
     elif smoothing is "sgolay":

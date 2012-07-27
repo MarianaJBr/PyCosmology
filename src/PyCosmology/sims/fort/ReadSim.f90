@@ -1,29 +1,51 @@
-
+include 'Auxiliary.f90'
 module SimOps
+	use AuxiliaryOperations
 	implicit none
 
-
-	real, allocatable		:: pos(:,:),vel(:,:)
-	real, allocatable		:: g_pos(:,:), g_vel(:,:)
-	integer,allocatable  	:: ID(:)
-	integer,allocatable  	:: grouplen(:), groupoffset(:), ids(:),group_IDS(:)
-	integer, allocatable	:: group_number(:)
+	!Fundamental Parameters. 
+	real(8), parameter		:: pi = 3.141592653589	!Fundamental Constant.
+	real(8), parameter		:: delta_vir = 150.d0	!Critical Overdensity defining virial radius.
+	real(8), parameter		:: rho_c = 27.75d0		!Critical Density of the Universe.
 	
-	real, allocatable 		:: pos_r(:,:), r(:), vel_r(:,:)
-	real(8),allocatable   	:: dens(:), bin_edges(:), vol(:)
+	!Important Properties of the Simulation
+	real, allocatable		:: pos(:,:)			!3D Positions of all particles
+	real, allocatable		:: vel(:,:)			!3D Velocities of all particles
+	integer  				:: FlagSfr			!
+	integer					:: FlagFeedback		!
+	integer					:: Nall(6)			!
+	integer					:: FlagAge			! 
+	integer					:: FlagCooling 		!
+	integer  				:: FlagMetals		!
+	integer					:: NallHW(6)		!
+	integer					:: FlagEntrICs		!
+	integer					:: npart(6)			!Number of various types of particles. DM only will have npart(2) /=0
+	integer					:: NumFiles			!Number of simulation files.
+	real(8)  				:: massarr(6)		!Mass of each particle type. DM only has massarr(2) only
+	real(8)					:: time				!
+	real(8)					:: BoxSize			!Box Size of the Simulation
+	real(8)					:: OmegaLambda		!Cosmological Constant of Simulation.
+	real(8)	 				:: HubbleParam		!Hubble Parameter of Simultion
+	real(8)					:: Omega0			!Fraction of Criticial Density of Current Universe
+	real(8)					:: Redshift			!Redshift of the Simulation.
 	
-    
-	!Variables defined in the header of a snapshot file.	
-	integer  :: FlagSfr, FlagFeedback, Nall(6), FlagAge, FlagCooling 
-	integer  :: FlagMetals, NallHW(6), FlagEntrICs, npart(6),NumFiles
-
-	real(8)  ::massarr(6), time, BoxSize,OmegaLambda
-	real(8)	 ::HubbleParam,Omega0, Redshift
+	!Important Group Properties
+	integer					:: ngroups			!Total number of groups in sim.
+	integer, allocatable	:: group_number(:)	!The group number of each particle (in order of largest to smallest group)
+	integer, allocatable	:: ids(:)			!ID's of all particles IN GROUPS
+	real					:: axis_ratio_b		!2ndAxis/1stAxis of a group
+	real					:: axis_ratio_c		!3rdAxis/1stAxis of a group
+	real					:: axis_ratio_d		!3rdAxis/2ndAxis of a group
 	
-	integer		:: ngroups
-	real		:: axis_ratio_b, axis_ratio_c, axis_ratio_d
+	
+	!Important Subgroup Properties.
+    integer					:: nsub				!Number of subhalos.
+    integer, allocatable	:: subparent(:)    !fofcat ID of parent halo. Allocated as nsub.
+    integer, allocatable	:: subgroup_number(:)	!The subgroup number (ID) of every particle.
+	
+    !Run Parameters
 	logical		:: loud = .FALSE.
-	
+
 	contains
 
 
@@ -31,33 +53,45 @@ module SimOps
  	  ! ReadSim - Simply read in information from the simulation
   !----------------------------------------------------------------------		
     subroutine ReadSim(filename)    
-		integer :: i
-		character(len=*), intent(in) :: filename
-
-		! Read in Simulation File values (only positions, velocities and ID's)  
+    	character(len=*), intent(in)	:: filename	!Filename of the Simulation
+    	
+    	integer 						:: i		!Iterator.
+    	integer, allocatable			:: ID(:)	!ID's of all particles.
+    	
 		open(unit=10,file=filename,form='UNFORMATTED')
         
+		! Read Overall Simulation Properties. All saved in case needed.
 		read(10) npart, massarr, time, Redshift, FlagSfr, FlagFeedback, Nall,&
 				  & FlagCooling, NumFiles, BoxSize, Omega0, OmegaLambda,&
 				  &HubbleParam,FlagAge, FlagMetals, NallHW, FlagEntrICs
-																							
-		write(*,*) "Number of particles(1) = ", npart(1)
-		write(*,*) "Number of particles(2) = ", npart(2)
-		write(*,*) "Number of particles(3) = ", npart(3)
-		write(*,*) "Number of particles(4) = ", npart(4)
-		write(*,*) "Number of particles(5) = ", npart(5)
-		write(*,*) "Number of particles(6) = ", npart(6)
+		
+		! Write interesting information out.
+		write(*,*) "Number of particles = ", npart(2)
 		write(*,*) "Time of snapshot: ", time
 		write(*,*) "Redshift of snapshot: ", Redshift
 		write(*,*) "BoxSize of Sim: ", BoxSize
 		
+		!Make sure the relevant arrays are not previously allocated
+		! which may happen if reading in multiple sim files.
+		if (allocated(pos))then
+			deallocate(pos)
+		end if
+		if (allocated(vel))then
+			deallocate(vel)
+		end if
+		
+		!Allocate the appropriate arrays.
 		allocate(pos(3,npart(2)),vel(3,npart(2)),ID(npart(2)))
+		
+		!Skip ahead to the ID's for automatic ordering.
 		read(10)
 		read(10)
 				
-		
+		! Read in Simulation File values (only positions, velocities and ID's)
 		read(10) (ID(i), i=1,npart(2))
 		write(*,*) "Read Particle ID's"
+		
+		!Rewind to the positions and velocities.
 		rewind(10)
 		read(10)
 		read(10) (pos(1,ID(i)),pos(2,ID(i)),pos(3,ID(i)), i=1,npart(2))
@@ -66,72 +100,100 @@ module SimOps
 		write(*,*) "Read Velocities"
 		close(10)
       
-      deallocate(ID)
+		!The ID's are not needed for anything else, so they can be deallocated.
+		deallocate(ID)
     end subroutine
     
   !----------------------------------------------------------------------
  	  ! find_groups - establish which objects belong to which groups.
   !----------------------------------------------------------------------
     subroutine find_groups(filename,ids_file)  
-    
-    	integer 			:: k, ntot, group_offset, group_size
-    	character(len=*)	:: filename,ids_file
-    	
-    	integer				::offset_pos(1), group_ID, i
+		character(len=*), intent(in)	:: filename		!Group catalogue file
+		character(len=*), intent(in)	:: ids_file 	!Particle ID's of all particles in groups.
+		
+		integer,allocatable	:: grouplen(:)		!The size of each group
+		integer,allocatable	:: groupoffset(:)	!The offset of each group.
+    	integer 			:: k,i				!Iterators
+    	integer				:: ntot				!Total number of particles in groups
+    	integer				:: group_offset		!The offset from 0 of a particular group in the ID's file.
+    	integer				:: offset_pos(1)	!The identifier of the next largest group
+    	integer				:: group_ID			!The ID of a particular member of a group.
 
     	
-    	
+    	!Open the FoF group catalogue
     	open(1,file=filename,status='unknown',form='unformatted')
     	          
-    	read(1) ngroups                         ! Total number of FOF groups
+    	!First get the total number of groups.
+    	read(1) ngroups
     	
     	write(*,'(a,i6,a)') 'Reading ',ngroups,' groups...'
     	
-    	allocate(grouplen(ngroups),groupoffset(ngroups))
+    	!Allocate the main arrays.
+    	allocate(grouplen(ngroups))
+    	allocate(groupoffset(ngroups))
     	
-    	read(1) (grouplen(i),i=1,ngroups)      ! Length of each FOF group
+    	!Read the information into the main arrays.
+    	read(1) (grouplen(i),i=1,ngroups) 
     	write(*,*) 'Read group lengths'
-    	read(1) (groupoffset(i),i=1,ngroups)  ! Offset in the pos.ids file
+    	read(1) (groupoffset(i),i=1,ngroups)
     	write(*,*) 'Read group offsets'
     	!read(1) (nsubgroups(i),i=1,ngroups) ! Number of subgroups -- ignore
     	!write(*,*) 'Read number of subgroups'
     	close(1)
     	
+    	!Now Open the ID's file
     	open(1,file=ids_file,status='unknown',form='unformatted')
-    	read(1) ntot                     ! Total number of particles in FOF groups
+    	read(1) ntot          
+    	write(*,*) "There are ", ntot, " particles in groups"
     	allocate(ids(ntot))
-    	read(1) (ids(i),i=1,ntot)  ! Particle IDs
+    	read(1) (ids(i),i=1,ntot)
     	close(1)    
-
-        allocate(group_number(size(pos(1,:))))
+    	
+    	!=======================================================
+    	!We now have  how big each group is, and where each group starts in the
+    	!ID file, and the ID's of all the particles in the groups. We only need
+    	!to flag each particle with its correct group now (actually building
+    	!lists of groups will be left to the more flexible python).
+    	!=======================================================
+    		
+    	!Allocate an array to store the group number (in descending size order)
+    	!of each particle.
+        allocate(group_number(npart(2)))
+        
+        !Initialize to zero, so particles with the zero flag are not in groups.
         group_number(:) = 0
     
-    ! Locate Largest Group/Halo and save properties.
+        !The process here is to locate the largest group, and flag all particles
+        !belonging to it as belonging to group 1, then find the next largest 
+        !group and set them to 2 etc.
         do k = 1,ngroups
         	if(loud)then
         		write(*,*) "Calculating characteristics of group", k
         	end if
-          offset_pos = maxloc(grouplen)
-          group_offset = groupoffset(offset_pos(1))
-          group_size = maxval(grouplen)
-          if (loud)then
-          	  write(*,*) "Group Size: ", group_size
-          end if
-
-
-
-          if (loud) then
-          	  write(*,*) "Specifying group particles"
-          end if
-          
-          do i=1,maxval(grouplen)
-            group_ID = ids(group_offset+i)
-            
-            group_number(group_ID) = k
-     
-          end do
-          
-          grouplen(offset_pos(1)) = -1
+        	
+        	!Locate largest group
+        	offset_pos = maxloc(grouplen)
+        	group_offset = groupoffset(offset_pos(1))
+          	if (loud)then
+          		  write(*,*) "Group Size: ", maxval(grouplen)
+          	end if
+          	
+          	if (loud) then
+          		  write(*,*) "Specifying group particles"
+          	end if
+          	
+          	!Specify the particles of this group, returning an array of numbers
+          	!corresponding to which group each is in.
+          	do i=1,maxval(grouplen)
+          	  group_ID = ids(group_offset+i)
+          	  
+          	  group_number(group_ID) = k
+          	
+          	end do
+          	
+          	!Set the current group size to negative so the next biggest group
+          	!can be found simply.
+          	grouplen(offset_pos(1)) = -1
         end do
       end subroutine
  
@@ -142,34 +204,37 @@ module SimOps
   	subroutine centre(g_pos,n,mode)
   	!
   	!mode refers to where to place the centre (0,0,0).
+  	!
   	!mode = 1 uses the first particle (centre of density)
   	!mode = 2 uses the average particle position (centre of mass)
   	!mode = 3 recentres with equal limits in both directions.
-  	!
-  	
-    	integer,intent(in)	:: n 
-    	integer,intent(in),optional :: mode
-  		real,intent(inout)	:: g_pos(3,n)
-  		
-  		real				:: centre_of_density(3), c_o_m(3), equal_centre(3)
-  		integer				:: i, temp_mode
- 		
-  		if (present(mode)) then
-  			temp_mode = mode
-  		else
-  			temp_mode = 1
-  		end if
-  		
+  	!	
 
+  	
+    	integer,intent(in)	:: n 					!The size of the group
+    	integer,intent(in)	:: mode					!The mode to recentre in
+  		real,intent(inout)	:: g_pos(3,n)			!The positions of the group.
   		
+  		real				:: centre_of_density(3)	!The most bound particle (1st in the group)
+  		real				:: c_o_m(3)				!Centre of Mass (average particle position)
+  		real				:: equal_centre(3)		!Geometric Centre.
+  		
+  		integer				:: i					!Iterator
+  		integer				:: temp_mode			!Temp mode fill in.
+
+ 	
+  		
+  		!Always centre about the first particle firstly, so that particles
+  		!that are wrapped around the box don't affect the other measurements.
         centre_of_density = g_pos(:,1)
-        ! Re-centre the group around the centre of density
-        call ReCentre(g_pos, real(BoxSize),centre_of_density)
         
+        ! Re-centre the group around the centre of density
+        call ReCentre(g_pos, BoxSize,centre_of_density)
         if (loud) then
         write(*,"(A7,3es20.8,A1)") "CoD = (",&
                                     &centre_of_density,")"
         end if
+        
         if (temp_mode == 2) then
         	
 			c_o_m(:) = 0.000
@@ -183,7 +248,7 @@ module SimOps
 			write(*,"(A27,3es20.8,A1)") "Centre of Mass of group = (", c_o_m,")"
 			end if
 			! Re-centre the group around the centre
-				call ReCentre(g_pos, real(BoxSize),c_o_m)
+				call ReCentre(g_pos, BoxSize,c_o_m)
 		end if
         
 		if (temp_mode == 3) then
@@ -191,7 +256,7 @@ module SimOps
 			equal_centre(2) = (maxval(g_pos(2,:))+minval(g_pos(2,:)))/2.d0
 			equal_centre(3) = (maxval(g_pos(3,:))+minval(g_pos(3,:)))/2.d0
 			! Re-centre the group around the centre
-				call ReCentre(g_pos, real(BoxSize),equal_centre)
+				call ReCentre(g_pos, BoxSize,equal_centre)
 		end if
 		
 		if (loud) then
@@ -205,60 +270,71 @@ module SimOps
  	  ! rotate - rotate data into moment of inertia defined coords plus angle
   !----------------------------------------------------------------------            
 	subroutine rotate(g_pos, g_vel, n, u, theta)
-		integer, intent(in)	::n
-		real, intent(inout)	::g_pos(3,n), g_vel(3,n)
-		real, intent(in)	::u(3),theta
-
+		integer, intent(in)	::n				!The number of objects
+		real, intent(inout)	::g_pos(3,n)	!The positions of the objects
+		real, intent(inout)	::g_vel(3,n)	!The velocities of the objects
+		real, intent(in)	::u(3)			!The vector around which to rotate (after rotation to the principle axes)
+		real, intent(in)	::theta			!The angle by which to rotate (after rotation to the principle axes)
+    
 		
-		integer	   :: nrot, i
-    	real      :: IT(3,3), eigval(3), pos_r(3,n)
-		real      :: eigvec(3,3)
-
+		integer	   			:: nrot			!A variable needed for the jacobi subroutine.
+		integer				:: i			!Iterator
+    	real      			:: IT(3,3)		!Moment of Inertia Tensor
+    	real				:: eigval(3)	!Eigenvalues of the Inertia Tensor
+		real      			:: eigvec(3,3)	!Eigenvectors of the Inertia Tensor
+		real,allocatable	:: pos_r(:,:)	!Intermediate array for rotated co-ords.
 		
-            ! Calculate the Moment of Inertia tensor
-            IT = Inertia(real(massarr(2)),g_pos)
-            if (loud) then
-            write(*,*) "Moment of Inertia calculated"
+        ! Calculate the Moment of Inertia tensor
+        IT = Inertia(real(massarr(2)),g_pos)
+        if (loud) then
+        	write(*,*) "Moment of Inertia calculated"
+        
+        	write(*,*) "Moment of Inertia tensor:"
+        	do i=1,3
+            	write(*,*) IT(i,:)
+            end do
+        end if
+         
+        
+        ! Diagonalize Inertia Tensor
+          call jacobi(IT,3,3,eigval,eigvec,nrot)
+          if (loud) then
+          	  write(*,*) "Moment of Inertia tensor diagonalized"
+          end if
           
-             write(*,*) "Moment of Inertia tensor:"
-             do i=1,3
-                write(*,*) IT(i,:)
-             end do
-             end if
-             
-            ! Diagonalize Inertia Tensor
-              call jacobi(IT,3,3,eigval,eigvec,nrot)
-              if (loud) then
-              write(*,*) "Moment of Inertia tensor diagonalized"
-              end if
-            ! Re-order the eigs
-              call EigOrder(eigval,eigvec)
+        ! Re-order the eigs
+          call EigOrder(eigval,eigvec)
+          
+        ! Return the ratios of axes
+          axis_ratio_b = sqrt(eigval(2)/eigval(1))
+          axis_ratio_c = sqrt(eigval(3)/eigval(1))
+          axis_ratio_d = sqrt(eigval(3)/eigval(2))
+          if (loud) then
+          	  write(*,*) "Ratio of axes lengths b/a = ", axis_ratio_b
+          	  write(*,*) "Ratio of axes lengths c/a = ", axis_ratio_c
+          	  write(*,*) "Ratio of axes lengths c/b = ", axis_ratio_d
+          end if
+          
+        ! Project data into co-ordinates defined by
+            ! xbar = eigvec(1)*(x,y,z)
+            ! ybar = eigvec(2)*(x,y,z)
+            ! zbar = eigvec(3)*(x,y,z)
               
-            ! Return the ratios of axes
-              axis_ratio_b = sqrt(eigval(2)/eigval(1))
-              axis_ratio_c = sqrt(eigval(3)/eigval(1))
-              axis_ratio_d = sqrt(eigval(3)/eigval(2))
-              if (loud) then
-              write(*,*) "Ratio of axes lengths b/a = ", axis_ratio_b
-              write(*,*) "Ratio of axes lengths c/a = ", axis_ratio_c
-              write(*,*) "Ratio of axes lengths c/b = ", axis_ratio_d
-              end if
-              
-            ! Project data into co-ordinates defined by
-                ! xbar = eigvec(1)*(x,y,z)
-                ! ybar = eigvec(2)*(x,y,z)
-                ! zbar = eigvec(3)*(x,y,z)
-                  
-              do i=1,n
-                g_pos(:,i) = matmul(eigvec,g_pos(:,i))
-                g_vel(:,i) = matmul(eigvec,g_vel(:,i))
-              end do
-              
-              call GenRotate(g_pos,u,theta,pos_r)
-              g_pos = pos_r
-
-              call GenRotate(g_vel,u,theta,pos_r)
-              g_vel = pos_r
+          do i=1,n
+            g_pos(:,i) = matmul(eigvec,g_pos(:,i))
+            g_vel(:,i) = matmul(eigvec,g_vel(:,i))
+          end do
+          
+          allocate(pos_r(3,n))
+          
+          !Now the group has been rotated to the principle axes, and we can
+          !perform another general rotation upon it.
+          call GenRotate(g_pos,u,theta,pos_r)
+          g_pos = pos_r
+        
+          call GenRotate(g_vel,u,theta,pos_r)
+          g_vel = pos_r
+          
       end subroutine
       
       
@@ -266,12 +342,17 @@ module SimOps
  	  ! density_profile - calculate density profile.
   !----------------------------------------------------------------------  
    	subroutine	density_profile(g_pos, n,bins,min_bin,dens,bin_edges)
-   		integer, intent(in)	::n, bins
-   		real, intent(in)	::g_pos(3,n),min_bin
+   		integer, intent(in)	::n					!Number of objects
+   		integer, intent(in)	::bins				!Number of bins to use in histogram
+   		real, intent(in)	::g_pos(3,n)		!Positions of objects in group
+   		real, intent(in)	::min_bin			!Radius at which to start binning.
 
-   		real, intent(out)				::bin_edges(bins+1),dens(bins)
-   		real							::r(n), vol(bins)
-   		integer							::i
+   		real, intent(out)	::bin_edges(bins+1)	!Positions of the bin edges
+   		real, intent(out)	::dens(bins)		!Density within the bins.
+   		
+   		real				::r(n)				!Radius of each object from centre
+   		real				::vol(bins)			!Volume of each bin
+   		integer				::i					!Iterator.
 
        ! Calculate radii from c_o_m/c_o_d (to make density profiles)
          do i=1,n
@@ -288,246 +369,203 @@ module SimOps
          
          dens(:) = dens(:)/vol(:)
          if (loud) then
-         write(*,*)"Calculated spherically symmetric density profile"
+         	 write(*,*)"Calculated spherically symmetric density profile"
          end if
      end subroutine
-         
-  
-  subroutine ReCentre(pos, BoxSize, centre)
-    real, intent(in)    :: BoxSize
-    real, intent(inout) :: pos(:,:)
-    real,intent(in)      :: centre(3)
-    integer             :: i,j
-    
-    
-    do j=1,size(pos(1,:))
-      do i=1,size(pos(:,1))
-        if (pos(i,j).LT.centre(i)-BoxSize/2.0)then
-          pos(i,j) = pos(i,j) + BoxSize
-        else if(pos(i,j).GT.centre(i)+BoxSize/2.0)then
-          pos(i,j) = pos(i,j) - BoxSize
-        end if
+
+  !----------------------------------------------------------------------
+ 	  ! centre_of_mass_offset_fof - calculate the centre of mass
+ 	  ! offset for a friends-of-friends group
+  !----------------------------------------------------------------------  
+   	subroutine	centre_of_mass_offset_fof(g_pos, n, mass_offset)
+   		integer, intent(in)	::n				!Number of objects in group	
+   		real, intent(in)	::g_pos(3,n)	!Co-ords of objects in group
+  		
+   		real, intent(out)	::mass_offset	!The centre of mass offset
+   		
+  		real				::most_bound(3)	!The position of the most bound particle
+  		real				::c_o_m(3)		!The centre of mass (average position of particles)
+  		real				::r_vir			!The virial radius.
+  		integer				::i				!Iterator
+
+
+  		!Find the position of the most bound particle (first particle)
+        most_bound = g_pos(:,1)
         
+        !Make sure the group has been centred previously.
+        !if(most_bound.NE.0.0)then
+        !	write(*,*) "ERROR: GROUP WAS NOT CENTRED BEFORE FINDING OFFSETS"
+        !	stop
+        !end if
         
-      end do
-      pos(:,j) = pos(:,j)-centre(:)
-    end do
-  end subroutine
-  
-  
-  function Inertia(mass,pos)
-    real, intent(in)  :: mass, pos(:,:)
-    real, allocatable :: pos_1(:,:)
-    integer           :: i,j,k, length
-    real, allocatable :: r(:)
-    real              :: c_o_m(3)
-    real              :: Inertia(3,3)
-    
-    length = size(pos(1,:))
-    c_o_m(:) = 0.000
-    do i = 1,length
-      c_o_m(:) = c_o_m(:) + pos(:,i)
-    end do
-    c_o_m = c_o_m/real(length)
-    
-    allocate(r(length))
-    allocate(pos_1(3,length))
-    do i = 1,length
-      pos_1(:,i) = pos(:,i) - c_o_m(:)
-    end do
-    
-    do i =1,length
-      r(i) = sqrt(pos_1(1,i)**2 + pos_1(2,i)**2 + pos_1(3,i)**2)
-    end do
-    
-    
-    Inertia(:,:) = 0.0
-    do j=1,3
-      do k=1,3
-        do i=1,length
-          if (j==k) then
-            Inertia(j,k) = Inertia(j,k) + (r(i)**2- pos_1(j,i)*pos_1(k,i))
-          else
-            Inertia(j,k) = Inertia(j,k) - pos_1(j,i)*pos_1(k,i)
-          end if
+        	
+		!Find the centre of mass of the group.      	
+		c_o_m(:) = 0.000
+		do i = 1,n
+		  c_o_m(1) = c_o_m(1) + g_pos(1,i)
+		  c_o_m(2) = c_o_m(2) + g_pos(2,i)
+		  c_o_m(3) = c_o_m(3) + g_pos(3,i)
+		end do
+		c_o_m(:) = c_o_m(:)/real(n)
+
+        
+		!Find the virial radius.
+		r_vir = (3.d0*n*massarr(2)/(4.d0*pi*delta_vir*rho_c))**(1./3.)
+		write(*,*) "Virial Radius FoF: ", r_vir
+		write(*,*) "Size of FoF group: ", n
+		mass_offset = ((most_bound(1)-c_o_m(1))**2+&
+					   &(most_bound(2)-c_o_m(2))**2+&
+					   &(most_bound(3)-c_o_m(3))**2)/r_vir
+		
+     end subroutine
+     
+  !----------------------------------------------------------------------
+ 	  ! centre_of_mass_offset_sphere - calculate the centre of mass
+ 	  ! offset for a spherical overdensity.
+  !----------------------------------------------------------------------  
+   	subroutine	centre_of_mass_offset_sphere(most_bound, mass_offset)
+  		real, intent(in)	::most_bound(3)	!The position of the most bound particle
+  		real, intent(out)	::mass_offset	!The centre of mass offset
+
+  		real				::c_o_m(3)		!The centre of mass (average position of particles)
+  		real				::r_vir			!The virial radius.
+  		integer				::i				!Iterator
+  		real				::radius(npart(2))	!The radius from centre of group of all particles in sim.
+  		real				::index_array(npart(2)) !The index of all particles 
+  		integer				::particles_in_group	!The size of the spherical group.
+  		real(8)				::dens			!Density of sphere within current particle
+
+        write(*,*) "Most bound particle at", most_bound
+        !ReCentre the whole simulation
+        call ReCentre(pos,BoxSize,most_bound)
+        
+        !Find the radius to ALL PARTICLES from the centre particle of current group
+        do i=1,npart(2)
+        	radius(i) = sqrt(pos(1,i)**2 + pos(2,i)**2 + pos(3,i)**2)
         end do
-      end do
-    end do
-    Inertia = mass*Inertia
-
-  end function
-  
-  
-  subroutine EigOrder(eigval,eigvec)
-    real, intent(inout) :: eigval(:), eigvec(:,:)
-    real                :: t_eigval(size(eigval))
-    real                :: t_eigvec(size(eigvec(:,1)),size(eigvec(1,:)))
-    integer             :: maxpos(1)
-    integer :: i
-    
-    do i=1,3
-      maxpos = maxloc(eigval)
-      t_eigval(i) = eigval(maxpos(1))
-      eigval(maxpos(1)) = minval(eigval)-100.00
+        
+        !Set an array to index each particle from its original position.
+        do i=1,npart(2)
+        	index_array(i) = real(i)
+        end do
+        
+        !Sort the radii in ascending order, whilst ordering the indices in the same manner.
+        call sort2(npart(2),radius,index_array)
+        
+        write(*,*) "Smallest Radius (Centre Particle)", radius(1)
+        
+        !For each particle, estimate the enclosed density, checking whether
+        !it is still greater than delta_vir*rho_c.
+        do i=2,npart(2)
+        	dens = 3*massarr(2)*real(i)/(4*pi*radius(i)**3)
+        	!write(*,*) radius(i)
+        	if (dens.Lt.delta_vir*rho_c)then
+        		particles_in_group = i-1
+        		r_vir = radius(i-1)
+        		exit
+        	end if
+        end do
+        write(*,*) "Particles in Spherical Group: ", particles_in_group
+        write(*,*) "Virial Radius: ", r_vir
+        
+		!Find the centre of mass of the group.      	
+		c_o_m(:) = 0.000
+		do i = 1,particles_in_group
+		  c_o_m(1) = c_o_m(1) + pos(1,int(index_array(i)))
+		  c_o_m(2) = c_o_m(2) + pos(2,int(index_array(i)))
+		  c_o_m(3) = c_o_m(3) + pos(3,int(index_array(i)))
+		end do
+		c_o_m(:) = c_o_m(:)/real(particles_in_group)
+		
+		!Calculate the mass_offset
+		mass_offset = (c_o_m(1)**2+c_o_m(2)**2+c_o_m(3)**2)/r_vir
+		
+		!ReCentre the whole dataset back to original co-ords
+		call ReCentre(pos,BoxSize,-most_bound)
+     end subroutine
+     
       
-      t_eigvec(:,i) = eigvec(:,maxpos(1))
-    end do
-    
-    eigval = t_eigval
-    eigvec = t_eigvec
-  end subroutine
-  
-  subroutine GenRotate(pos,u,theta,pos_r)
-    real, intent(in)    ::u(:), theta,pos(:,:)
-    real, intent(out) :: pos_r(:,:)
-    real              :: ROT(3,3)
-    integer           :: i
-    
-    ROT(1,1) = cos(theta) + (u(1)**2)*(1-cos(theta))
-    ROT(1,2) = u(1)*u(2)*(1-cos(theta))-u(3)*sin(theta)
-    ROT(1,3) = u(1)*u(2)*(1-cos(theta))+u(2)*sin(theta)
-    
-    ROT(2,1) = u(2)*u(1)*(1-cos(theta))+u(3)*sin(theta)
-    ROT(2,2) = cos(theta) + u(2)*u(2)*(1-cos(theta))
-    ROT(2,3) = u(2)*u(3)*(1-cos(theta))-u(1)*sin(theta)
-    
-    ROT(3,1) = u(3)*u(1)*(1-cos(theta))-u(2)*sin(theta)
-    ROT(3,2) = u(3)*u(2)*(1-cos(theta))+u(1)*sin(theta)
-    ROT(3,3) = cos(theta)+u(3)*u(3)*(1-cos(theta))
-    
-    do i = 1,size(pos(1,:))
-      pos_r(:,i) = matmul(ROT,pos(:,i))
-    end do
-  end subroutine
-    
-  subroutine LogBins(dat, bins, min_bin, binned,bin_edges)
-    real, intent(in)  :: dat(:), min_bin
-    integer, intent(in):: bins
-    real, intent(out)   :: binned(bins)
-    real                :: bin_edges(:), bin_size
-    integer :: i,j
-    
-    bin_size = (maxval(dat)/min_bin)**(1.0/(bins-1))
+  !----------------------------------------------------------------------
+ 	  ! read_subgroupv - read a subcat catalogue.
+  !---------------------------------------------------------------------- 
+  ! npart -- number of particles in (sub)groups
+  ! nsub -- number of subhaloes
+  ! sublen -- array -- length of each subhalo
+  ! suboffset -- array -- offset of each subhalo in IDs catalogue
+  ! subparent -- array -- fofcat ID of parent halo
 
-    bin_edges(1) = 0.0d0
-    do i=1,bins
-      bin_edges(i+1) = min_bin*bin_size**(i-1)
-    end do
-    
+    subroutine read_subgroupv(fname)
+      implicit none
 
-    binned(:) = 0.0d0
-    do i=1,size(dat)
-      do j=1,bins
-        if (dat(i).GT.bin_edges(j).AND.dat(i).LT.bin_edges(j+1))then
-          binned(j) = binned(j) + 1.0d0
-        end if
-      end do
-    end do
-  end subroutine
-    
-    
-
-
-    
-    
-        SUBROUTINE jacobi(a,n,np,d,v,nrot)
-      INTEGER n,np,nrot,NMAX
-      REAL a(np,np),d(np),v(np,np)
-      PARAMETER (NMAX=500)
-      INTEGER i,ip,iq,j
-      REAL c,g,h,s,sm,t,tau,theta,tresh,b(NMAX),z(NMAX)
-      do 12 ip=1,n
-        do 11 iq=1,n
-          v(ip,iq)=0.
-11      continue
-        v(ip,ip)=1.
-12    continue
-      do 13 ip=1,n
-        b(ip)=a(ip,ip)
-        d(ip)=b(ip)
-        z(ip)=0.
-13    continue
-      nrot=0
-      do 24 i=1,50
-        sm=0.
-        do 15 ip=1,n-1
-          do 14 iq=ip+1,n
-            sm=sm+abs(a(ip,iq))
-14        continue
-15      continue
-        if(sm.eq.0.)return
-        if(i.lt.4)then
-          tresh=0.2*sm/n**2
-        else
-          tresh=0.
-        endif
-        do 22 ip=1,n-1
-          do 21 iq=ip+1,n
-            g=100.*abs(a(ip,iq))
-            if((i.gt.4).and.(abs(d(ip))&
-            &*g.eq.abs(d(ip))).and.(abs(d(iq))+g.eq.abs(d(iq))))then
-              a(ip,iq)=0.
-            else if(abs(a(ip,iq)).gt.tresh)then
-              h=d(iq)-d(ip)
-              if(abs(h)+g.eq.abs(h))then
-                t=a(ip,iq)/h
-              else
-                theta=0.5*h/a(ip,iq)
-                t=1./(abs(theta)+sqrt(1.+theta**2))
-                if(theta.lt.0.)t=-t
-              endif
-              c=1./sqrt(1+t**2)
-              s=t*c
-              tau=s/(1.+c)
-              h=t*a(ip,iq)
-              z(ip)=z(ip)-h
-              z(iq)=z(iq)+h
-              d(ip)=d(ip)-h
-              d(iq)=d(iq)+h
-              a(ip,iq)=0.
-              do 16 j=1,ip-1
-                g=a(j,ip)
-                h=a(j,iq)
-                a(j,ip)=g-s*(h+g*tau)
-                a(j,iq)=h+s*(g-h*tau)
-16            continue
-              do 17 j=ip+1,iq-1
-                g=a(ip,j)
-                h=a(j,iq)
-                a(ip,j)=g-s*(h+g*tau)
-                a(j,iq)=h+s*(g-h*tau)
-17            continue
-              do 18 j=iq+1,n
-                g=a(ip,j)
-                h=a(iq,j)
-                a(ip,j)=g-s*(h+g*tau)
-                a(iq,j)=h+s*(g-h*tau)
-18            continue
-              do 19 j=1,n
-                g=v(j,ip)
-                h=v(j,iq)
-                v(j,ip)=g-s*(h+g*tau)
-                v(j,iq)=h+s*(g-h*tau)
-19            continue
-              nrot=nrot+1
-            endif
-21        continue
-22      continue
-        do 23 ip=1,n
-          b(ip)=b(ip)+z(ip)
-          d(ip)=b(ip)
-          z(ip)=0.
-23      continue
-24    continue
-      return
-      END
-  
-  
+      character*(*), intent(in)		:: fname			!input file name
       
-    
-    
+      integer 					 	:: i,k				!Iterators
+      integer, allocatable			:: sublen(:)       	!Length of each subhalo. Allocated as nsub.
+      integer, allocatable			:: suboffset(:)    	!Offset of each subhalo. Allocated as nsub.
+      integer, allocatable		 	:: parent_groups(:)	!Temporary array to store which group each subgroup particle belongs to.
+      integer					 	:: offset_pos(1)	!Largest subgroup identifier for a particlur subgroup
+      integer						:: group_offset		!Offset of the current largest subgroup
+      integer						:: group_ID			!ID of current particle belonging to the subgroup.
+      
+      
+      !Open the subgroup file
+      write(*,'(a,a)') 'Reading ',trim(fname)
+      open(1,file=fname,status='unknown',form='unformatted')
+      
+      !Read the number of subgroups.
+      read(1) nsub
+      
+      !Since subparent is a module variable, check if it is already allocated.
+      if(allocated(subparent))then
+      	  deallocate(subparent)
+      end if
+      
+      !Allocate necessary arrays.
+      allocate(sublen(nsub))
+      allocate(suboffset(nsub))
+      allocate(subparent(nsub))
+      
+      !Read into the arrays.
+      read(1) (sublen(i),i=1,nsub)
+      read(1) (suboffset(i),i=1,nsub)
+      read(1) (subparent(i),i=1,nsub)
+      close(1)
+
+      write(*,*) 'Read ',nsub,' subgroups...'
+
+      allocate(parent_groups(nsub))
+      allocate(subgroup_number(npart(2)))
+      
+      !Initialize Subgroup number to zero, representing belonging to no subgroup.
+      subgroup_number = 0
+      
+      !Now, similarly to read_groups, we cycle through every subgroup, and
+      !every particle within that subgroup (from largest to smallest), flagging
+      !each particle with a number indicating which subgroup it is in, and also
+      !saving a list of numbers referring to which parent group each subgroup is
+      !in. Note that the numbers will be fairly randomly dispersed.
+      do k = 1,nsub
+        offset_pos = maxloc(sublen)
+        group_offset = suboffset(offset_pos(1))
+      
+        parent_groups(k) = subparent(offset_pos(1))
+        
+        do i=1,maxval(sublen)
+          group_ID = ids(group_offset+i)
+          
+          subgroup_number(group_ID) = k
+      
+        end do
+        
+        sublen(offset_pos(1)) = -1
+      end do
+      
+      subparent = parent_groups
+    end subroutine
 
 
+  
+   
     
 end module
      

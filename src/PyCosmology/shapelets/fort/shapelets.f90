@@ -1,135 +1,113 @@
 module shapelets
-  implicit none
-  
+	implicit none
+	
   !A module defining various subroutines and functions use in 3D shapelet
   !decomposition.
   	  
   !There are several subroutines defining significant components of the
-  !process, and one subroutine to join them together. All interesting quantities
-  !are stored as module-level variables for access from Python.
-    
+  !process, and one subroutine to join them together.
+  	  
   !----- Universal Parameters --------------------------------------------------
-  	real(8), parameter	   ::pi= 3.141592653589793  !Value of Pi
+  	real(16), parameter	   ::pi= 3.141592653589793  !Value of Pi
 
   !----- Accessible Quantities -------------------------------------------------
- 	real(8)					:: beta_c			!Beta parameter from Fluke.
+ 	real(8)					:: beta				!Beta parameter from Fluke.
  	real(8)					:: dx				!The interval between cells.
  	integer					:: nmax				!The maximum shapelet order
  	
- 	real(8), allocatable	:: Ints(:,:)		!Integral factors. Takes shape (Ng, nmax+1)
- 	real(8), allocatable	:: coeffs(:,:,:)	!The cube of coefficients of shapelets.
- 	real(8), allocatable	:: recon(:,:,:)		!The reconstructed group density.
- 	
- 	
- 	
- 	
- 	
- 	
- 	
- 	contains
+	contains
+
   !----------------------------------------------------------------------
  	  ! shapelet_driver - drives the other subroutines.
   !---------------------------------------------------------------------- 
-  	  subroutine shapelet_driver(density, x_max, do_reconstruct, Ng)
+  	  subroutine shapelet_driver(density,x_max,do_reconstruct, Ng,coeffs,recon)
   	  	real(8), intent(in)		:: density(Ng,Ng,Ng)
   	  	real(8), intent(in)		:: x_max
   	  	integer, intent(in)		:: Ng
   	  	logical, intent(in)		:: do_reconstruct
   	  	
-  	  
+  	  	real(8), intent(out)	:: coeffs((Ng-3)/2+1,(Ng-3)/2+1,(Ng-3)/2+1)
+  	  	real(8), intent(out)	:: recon(Ng,Ng,Ng)
+  	  	
  	  	dx = 2.d0*x_max/Ng
  	  	nmax = (Ng-3)/2
- 	  	beta_c = 0.8*x_max/sqrt(2.0d0*Ng)
+ 	  	beta = 0.8*x_max/sqrt(2.0d0*Ng)
  	  	
  	  	
  	  	write(*,*) "x_max = ", x_max
  	  	write(*,*) "Ng = ", Ng
  	  	write(*,*) "nmax = ", nmax
  	  	write(*,*) "dx = ", dx
- 	  	write(*,*) "beta = ", beta_c
+ 	  	write(*,*) "beta = ", beta
  	    
  	  	
-  	  	call coeff_cube(density, Ng, x_max)
+  	  	call coeff_cube(density, Ng, x_max,coeffs)
  	
   	  	if(do_reconstruct)then
-  	  		call reconstruct_cube(Ng, x_max)
+  	  		call reconstruct_cube(coeffs,Ng, x_max,recon)
   	  		write(*,*) 'f(26,27,27):', density(26,27,27)
   	  		write(*,*) 'recon(26,27,27):', recon(26,27,27)
   	  	end if
  	
-  	  end subroutine
- 
+  	  end subroutine 	
+  	  
   !----------------------------------------------------------------------
  	  ! cyclic_test - performs a basic test of the de/re-construction
   !---------------------------------------------------------------------- 
-  	  subroutine cyclic_test(bases, n_b, x_max, Ng, intermediate_recon)
+  	  subroutine cyclic_test(bases,n_b,x_max,Ng,intermediate_recon,coeffs,recon)
   	  	integer, intent(in)		:: n_b
   	  	integer, intent(in)		:: bases(n_b,3)
   	  	real(8), intent(in)		:: x_max
   	  	integer, intent(in)		:: Ng
   	  	
   	  	real(8), intent(out)	:: intermediate_recon(Ng,Ng,Ng)
+  	  	real(8), intent(out)	:: coeffs((Ng-3)/2+1,(Ng-3)/2+1,(Ng-3)/2+1)
+  	  	real(8), intent(out)	:: recon(Ng,Ng,Ng)
+
   	  	integer					:: i,j,k
-  	  	
-  	  	write(*,*)
-  	  	write(*,*)
-  	  	write(*,*)"========================================"
-  	  	write(*,*)"SHAPELET ANALYSIS (CYCLIC TEST)"
-  	  	write(*,*)"========================================"
-  	  	write(*,*)
   	  	
  	  	dx = 2.d0*x_max/Ng
  	  	nmax = (Ng-3)/2
- 	  	beta_c = 0.8*x_max/sqrt(2.0d0*Ng)
- 	  	
- 	    	
- 	    if(allocated(coeffs))then
- 	    	  deallocate(coeffs)
- 	    end if
- 	    
- 	    write(*,*) "Setting initial coefficients from prescribed bases"
- 	    allocate(coeffs(nmax+1,nmax+1,nmax+1))
+ 	  	beta = 0.8*x_max/sqrt(2.0d0*Ng)
+
+
  	  	coeffs(:,:,:) = 0.d0
  	    do i=1,n_b
+ 	    write(*,*) i, 'done'
  	    	coeffs(bases(i,1)+1,bases(i,2)+1,bases(i,3)+1) = 1.d0
  	    end do
  	    
  	    
- 	  	write(*,*) "  x_max = ", x_max
- 	  	write(*,*) "  Ng = ", Ng
- 	  	write(*,*) "  nmax = ", nmax
- 	  	write(*,*) "  dx = ", dx
- 	  	write(*,*) "  beta = ", beta_c
+ 	  	write(*,*) "x_max = ", x_max
+ 	  	write(*,*) "Ng = ", Ng
+ 	  	write(*,*) "nmax = ", nmax
+ 	  	write(*,*) "dx = ", dx
+ 	  	write(*,*) "beta = ", beta
  	    
- 	  	write(*,*) "Building density cube from original coefficients"
-  	  	call reconstruct_cube(Ng, x_max)
+ 	  	
+  	  	call reconstruct_cube(coeffs,Ng, x_max,recon)
   	  	
   	  	intermediate_recon = recon
   	  	
-  	  	write(*,*) "Deconstructing density cube into coefficients"
-  	  	call coeff_cube(recon, Ng, x_max)
-  	  	
-  	  	write(*,*) "Rebuilding from new coefficients"
-  	  	call reconstruct_cube(Ng, x_max)
-  	  	
+  	  	call coeff_cube(recon, Ng, x_max,coeffs)
+ 
+  	  	call reconstruct_cube(coeffs,Ng, x_max,recon)
   	  	!Check how the coefficients match up.
-  	  	write(*,*) "The coefficients that SHOULD be one:"
  	    do i=1,n_b
  	    	write(*,*) bases(:,i),coeffs(bases(i,1)+1,bases(i,2)+1,bases(i,3)+1)
  	    end do
  	    
- 	    write(*,*) "THE FOLLOWING COEFFICIENTS ARE LARGER THAN E-6:"
- 	    do i=1,nmax+1
- 	    	do j=1,nmax+1
- 	    		do k=1,nmax+1
- 	    			if (coeffs(i,j,k).GT.1E-6) then
+ 	    write(*,*) "THE FOLLOWING COEFFICIENTS ARE LARGER THAN 0:"
+ 	    do i=1,Ng
+ 	    	do j=1,Ng
+ 	    		do k=1,Ng
+ 	    			if (coeffs(i,j,k).GT.1E-16) then
  	    				write(*,*) "(",i-1,',',j-1,',',k-1,') :', coeffs(i,j,k)
  	    			end if
  	    		end do
  	    	end do
  	    end do
   	  end subroutine
-  	   	  
   	  
   !----------------------------------------------------------------------
  	  ! BASIS_VECTOR - calculates bases recursively
@@ -138,19 +116,19 @@ module shapelets
   	  !Calculates the first n+1 basis functions at a point x, based on the
   	  !iterative method of Fluke et. al.
   	  	  
-  	  	real(8), intent(in)	::x
+  	  	real(16), intent(in)	::x
   	  	integer, intent(in)		::n
   	  	
   	  	real(8), intent(out)	::bases(n+1)
   	  	integer					::i
   	  	
-  	  	bases(1) = 1.d0/(sqrt(beta_c*sqrt(pi)))*exp(-x ** 2.d0/(2.d0*beta_c**2))
+  	  	bases(1) = 1.d0/(sqrt(beta*sqrt(pi)))*exp(-x ** 2.d0/(2.d0*beta**2))
   	  	if(n.GT.0)then
-  	  		bases(2) = sqrt(2.d0)*x*bases(1)/beta_c
+  	  		bases(2) = sqrt(2.d0)*x*bases(1)/beta
   	  	end if
   	  	if (n.GT.1)then
 			do i=3,n+1
-				bases(i) = (x/beta_c)*sqrt(2.d0/(i-1))*bases(i-1)-&
+				bases(i) = (x/beta)*sqrt(2.d0/(i-1))*bases(i-1)-&
 				&sqrt(real(i-2)/real(i-1))*bases(i-2)
 			end do
 		end if
@@ -158,72 +136,59 @@ module shapelets
 
   	  end subroutine
   	  
-
+  	  
   !----------------------------------------------------------------------
  	  ! cube_ints - finds the integrals necessary for a cube
   !----------------------------------------------------------------------	  
- 	subroutine cube_ints(x_max,Ng)
- 	!Calculates the first n+1 Integral factors for all Ng cells. Beta must be
- 	!specified beforehand.
+ 	subroutine cube_ints(x_max,Ng,Ints)
+ 	!Calculates the first n+1 Integral factors for all Ng cells. Beta and nmax
+ 	!must be specified beforehand.
  	
  	  integer, intent(in)  ::Ng
  	  real(8), intent(in)	::x_max
  	  
+ 	  real(8), intent(out)	:: Ints(Ng,nmax+1)
+ 	  
  	  integer              ::i,j
  	  real(8)              ::bases(Ng+1,nmax+1)
- 	  real(8)				:: x_a, x_b, erf_a, erf_b, a, b
+ 	  real(16)				:: x_a, x_b, erf_a, erf_b, a, b
 
  	  do i=1,Ng+1
  	  	a = -x_max + (i-1)*2.d0*x_max/Ng
  	  	call basis_vector(a,nmax,bases(i,:))
  	  end do
- 	  
- 	  if(allocated(Ints))then
- 	  	  deallocate(Ints)
- 	  end if
- 	  
- 	  allocate(Ints(Ng,nmax+1))
- 	  
+
  	  Ints = 0.0d0
 
  	  do i=1,Ng
  	  	a = -x_max + (i-1)*2.d0*x_max/Ng
  	  	b = a + 2.d0*x_max/Ng 	 
- 	  	x_a = a/(beta_c*sqrt(2.d0))
- 	  	x_b = b/(beta_c*sqrt(2.d0))
- 	  	
- 	  	!write(*,*) "a = ", a
- 	  	!write(*,*) "b = ", b
- 	  	!write(*,*) "x_a = ", x_a
- 	  	!write(*,*) "x_b = ", x_b
- 	  	
+ 	  	x_a = a/(beta*sqrt(2.d0))
+ 	  	x_b = b/(beta*sqrt(2.d0))
+
  	  	erf_a = erf(x_a)
  	  	erf_b = erf(x_b)
-		!write(*,'(A9,es28.20)') "erf(a) = ", log(abs(erf_a))
-		!write(*,'(A9,es28.20)') "erf(b) = ", log(abs(erf_b))
+
 		
- 	  	Ints(i,1) = (beta_c*pi**0.5d0 /2.d0)**(0.5d0) * (erf_b-erf_a)
+ 	  	Ints(i,1) = (beta*pi**0.5d0 /2.d0)**(0.5d0) * (erf_b-erf_a)
 		  
-		Ints(i,2) = -sqrt(2.d0)*beta_c*(bases(i+1,1)-bases(i,1))
+		Ints(i,2) = -sqrt(2.d0)*beta*(bases(i+1,1)-bases(i,1))
  	  
 		do j=3,nmax+1
- 	    	Ints(i,j) = -beta_c*sqrt(2.d0/(j-1))*(bases(i+1,j-1)-bases(i,j-1))+&
+ 	    	Ints(i,j) = -beta*sqrt(2.d0/(j-1))*(bases(i+1,j-1)-bases(i,j-1))+&
  	                &sqrt((i-1)/real(i))*Ints(i,j-2)
  	    end do
  	  end do
- 	  
- 	  !do i=1,nmax+1
- 	  !	write(*,'(es28.20)')Ints(1,i)
- 	  !end do
  	  	
  	end subroutine
-
+ 	
+ 	
   !----------------------------------------------------------------------
  	  ! COEFF_CUBE evaluates the coefficients in the case of a nice cube.
  	  	  ! This follows strictly the algorithm and optimization layed out
  	  	  ! in Fluke et. al.
   !----------------------------------------------------------------------	 	 
- 	subroutine coeff_cube(f, Ng,x_max_8)
+ 	subroutine coeff_cube(f, Ng,x_max_8,coeffs)
  	  integer, intent(in)   :: Ng
  	  real(8), intent(in)   :: f(Ng,Ng,Ng)
  	  real(8), intent(in)   :: x_max_8
@@ -231,14 +196,25 @@ module shapelets
  	  
  	  integer               :: i,j,k,ii,jj,kk
  	  
+ 	  real(8)				 :: Ints(Ng,nmax+1)
+ 	  real(8), intent(out)  :: coeffs(nmax+1,nmax+1,nmax+1)
+ 	  
+ 	  call cube_ints(x_max_8,Ng,Ints)
 
- 	  call cube_ints(x_max_8,Ng)
- 	  if(allocated(coeffs))then
- 	  	  deallocate(coeffs)
- 	  end if
- 	  allocate(coeffs(nmax+1,nmax+1,nmax+1))
-
+ 	  write(*,*) "NOW NMAX IS: ", nmax
  	  coeffs = 0.0d0
+ 	  do i=1,nmax+1
+ 	  	do j=1,nmax+1
+ 	  	  do k=1,nmax+1
+ 	  	  	coeffs(i,j,k) = 0.d0
+ 	  	  	write(*,*) coeffs(i,j,k)
+ 	  	  end do
+ 	  	end do
+ 	  end do
+ 	  
+ 	  write(*,*) coeffs(1,3,28)
+ 	  coeffs(1,3,28) = 0.0d0
+ 	  write(*,*) coeffs(1,3,28)
 
  	  do k=1,nmax+1
  	  	i=1
@@ -260,40 +236,46 @@ module shapelets
  	      	    do ii = 1,Ng
  	      	    	coeffs(i,j,k) = coeffs(i,j,k) + &
  	      	    	& f(ii,jj,kk)*Ints(ii,i)*Ints(jj,j)*Ints(kk,k)
+ 	      	    	if(i==1.AND.j==3.AND.k==28)then
+ 	      	    		if (kk==1) then
+ 	      	    		write(*,*) coeffs(i,j,k)
+ 	      	    		end if
+ 	      	    	end if
  	      	    end do
  	      	  end do
  	      	end do
  	      end do
  	    end do
  	  end do
+ 	  write(*,*) coeffs(1,3,28)
  	end subroutine
-
+ 	
   !----------------------------------------------------------------------
  	  ! RECONSTRUCT_CUBE reconstructs the data in the case of a nice cube.
  	  	  ! This follows strictly the algorithm and optimization layed out
  	  	  ! in Fluke et. al.
   !----------------------------------------------------------------------	
-  	  subroutine reconstruct_cube(Ng,x_max)
+  	  subroutine reconstruct_cube(coeffs,Ng,x_max, recon)
   	  	integer, intent(in)	:: Ng
   	  	real(8), intent(in)	:: x_max
-
+  	  	real(8), intent(in) :: coeffs(nmax+1,nmax+1,nmax+1)
+  	  	
+  	  	real(8), intent(out):: recon(Ng,Ng,Ng)
+  	  	
   	  	integer	:: i,j,k,ii,jj,kk
   	  	real(8)	:: bases(Ng,nmax+1)
-  	  	real(8)::x
-  	  	
-  	  	if(allocated(recon))then
-  	  		deallocate(recon)
-  	  	end if
-  	  	
-  	  	allocate(recon(Ng,Ng,Ng))
-  	  	
+  	  	real(16)::x
+
   	  	recon(:,:,:) = 0.0d0
   	  	
   	  	do j = 1,Ng
   	  		x = -x_max+(j-0.5d0)*dx
   	  		call basis_vector(x,nmax,bases(j,:))
   	  	end do
-
+  	  	
+  	  	write(*,*) "IN RECONSTRUCT_CUBE"
+  	  	write(*,*) 'Ng = ', Ng
+  	  	write(*,*) 'x_max = ', x_max
 
   	  	do k=1,Ng
   	  		do j = 1,Ng
@@ -331,49 +313,4 @@ module shapelets
   	    !write(*,*) recon
   	  end subroutine
   	  
-  	  
-!  !----------------------------------------------------------------------
-! 	  ! TEST BASIS_VECTOR - create reconstructions from singular basis
-! 	  !							functions.
-!  !----------------------------------------------------------------------  
-!  	  subroutine test(Ng,cube_0,cube_1,cube_2,cube_3)
-!  	  	!This subroutine produces four cubes, based on the basis vectors
-!  	  	!with beta = 1, n=(0,0,0), (0,1,0),(2,0,2),(1,2,4).
-!  	  		
-!  	  	integer, intent(in)	::Ng
-!  	  	real(8), intent(out)::cube_0(Ng,Ng,Ng), cube_1(Ng,Ng,Ng)
-!  	  	real(8), intent(out)::cube_2(Ng,Ng,Ng), cube_3(Ng,Ng,Ng)
-!  	  	
-!  	  	real(8)		:: x_max
-!  	  	real(8)		:: base(5,Ng)
-!  	  	integer		::i,j,k
-!  	  	real(8)		:: x
-!  	  	
-!  	  	
-!  	  	x_max = 1.5d0
-!  	  	beta_c = 1.d0
-!  	  	
-!  	  	cube_0 = 0.0d0
-!  	  	cube_1 = 0.0d0
-!  	  	cube_2 = 0.0d0
-!  	  	cube_3 = 0.0d0
-!  	  	
-!  	  	do i=1,Ng
-!  	  		x = -x_max+(i-0.5d0)*2.0*x_max/Ng
-!  	  		call basis_vector(x,4,base(:,i))
-!  	  	end do
-!  	  	
-!  	  	do k=1,Ng
-!  	  		do j = 1,Ng
-!  	  			do i = 1,Ng
-!  	  				cube_0(i,j,k) =cube_0(i,j,k) + base(1,i)*base(1,j)*base(1,k)
-!  	  				cube_1(i,j,k)=cube_1(i,j,k)+base(1,i)*base(2,j)*base(1,k)
-!  	  				cube_2(i,j,k)=cube_2(i,j,k)+base(3,i)*base(1,j)*base(3,k)
-!  	  				cube_3(i,j,k)=cube_3(i,j,k)+base(2,i)*base(3,j)*base(5,k)
-!  	  			end do
-!  	  		end do
-!  	  	end do
-!
-!  	  end subroutine
 end module
- 	  

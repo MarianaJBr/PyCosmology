@@ -23,7 +23,7 @@ class ShapeletOperations_DMH(object):
     """
     
     def __init__(self,sim_file,groups_file,group_ids_file, n=1,reverse=False,bins=51,reconstruct=True,
-                 test=False,basis_test=False,n_test=51,int_test=False):
+                 test=False,basis_test=False,n_test=51,int_test=False,x_max=1.0,bases=[[0,0,0]]):
         """
         Read in a sim-file for use with the shapelet analysis.
         
@@ -57,7 +57,10 @@ class ShapeletOperations_DMH(object):
             
         self.make_directories(sim_file)
 
-        self.shapelets_main(bins, reconstruct)
+        if not self.test:
+            self.shapelets_main(bins, reconstruct)
+        else:
+            self.shapelets_test(x_max, bins, bases)
         
     def make_directories(self,filename):
         """
@@ -116,43 +119,16 @@ class ShapeletOperations_DMH(object):
         self.rebuilt = []
         self.nmax = []
         
-        if not self.test:
-            for group in self.groups_pos:
-                x_max = 1.5*np.max(group)
+        for group in self.groups_pos:
+            x_max = 1.5*np.max(group)
                 
     
-                hist,edges = np.histogramdd(group.T,bins=bins,range=[[-x_max,x_max],[-x_max,x_max],[-x_max,x_max]])
-                del edges
+            hist,edges = np.histogramdd(group.T,bins=bins,range=[[-x_max,x_max],[-x_max,x_max],[-x_max,x_max]])
+            del edges
     
-                hist = np.log10(1.0+simops.massarr[1]*hist)
+            hist = np.log10(1.0+simops.massarr[1]*hist)
                 
-                fc.shapelet_driver(np.asfortranarray(hist),x_max, reconstruct, bins)
-
-                self.beta = self.beta+[fc.beta_c]
-                self.ints = self.ints +[fc.ints]
-                self.x_max = self.x_max + [x_max]
-                self.group_density = self.group_density + [hist]
-                self.coefficients = self.coefficients + [fc.coeffs]
-                self.nmax = self.nmax + [fc.nmax]
-                
-                if reconstruct:
-                    self.rebuilt = self.rebuilt + [fc.recon]
-        else:
-            cube0,cube1,cube2,cube3 = fc.test(bins)
-            x_max =  1.5
-            print "CUBE0"
-            print cube0
-            #hist,edges = np.histogramdd(np.asfortranarray(cube0),bins=bins,range=[[-x_max,x_max],[-x_max,x_max],[-x_max,x_max]])
-            #del edges
-    
-            #hist = np.log10(1.0+simops.massarr[1]*hist)
-            print cube0.shape
-            hist = np.asfortranarray(cube0)
-            print hist.shape
-            #hist[bins/2,bins/2,bins/2] = 1.0
-            
-            fc.shapelet_driver(np.asfortranarray(cube0),x_max, reconstruct, bins)
-            
+            fc.shapelet_driver(np.asfortranarray(hist),x_max, reconstruct, bins)
 
             self.beta = self.beta+[fc.beta_c]
             self.ints = self.ints +[fc.ints]
@@ -164,8 +140,32 @@ class ShapeletOperations_DMH(object):
             if reconstruct:
                 self.rebuilt = self.rebuilt + [fc.recon]
 
+    def shapelets_test(self,x_max,Ng,bases):
+        """
+        Uses the cyclic_test subroutine to generate pure shapelet states and test their residuals.
+        """
+        self.coefficients = []
+        self.beta = []
+        self.group_density = []
+        self.x_max = []
+        self.ints = []
+        self.rebuilt = []
+        self.nmax = []
+            
+        int_recon = np.asfortranarray(fc.cyclic_test(np.array(bases),x_max, Ng))
+            
+
+        self.beta = self.beta+[fc.beta_c]
+        self.ints = self.ints +[fc.ints]
+        self.x_max = self.x_max + [x_max]
+        self.group_density = self.group_density + [int_recon]
+        self.coefficients = self.coefficients + [fc.coeffs]
+        self.nmax = self.nmax + [fc.nmax]
+                
+        self.rebuilt = self.rebuilt + [fc.recon]
+
         if self.int_test:
-            self.test_ints(bins)
+            self.test_ints(Ng)
             
                             
     def zeroth_moment(self):
@@ -405,7 +405,6 @@ class ShapeletOperations_DMH(object):
                 #print re_ordered_data.shape
                 #smoothed_data = plotting.sgolay2d(re_ordered_data,window_size=window_size,order=4)
             density = np.sum(self.group_density[0],axis=2)
-            print density.shape
             
             plt.imshow(np.transpose(np.fliplr(density)),extent=(-self.x_max[0],self.x_max[0],-self.x_max[0],self.x_max[0]),interpolation="Gaussian",aspect='equal')
                 
@@ -416,7 +415,42 @@ class ShapeletOperations_DMH(object):
                 #smoothed_data = plotting.sgolay2d(re_ordered_data,window_size=window_size,order=4)
             plt.imshow(np.transpose(np.fliplr(density)),interpolation="Gaussian",aspect='equal',extent=(-self.x_max[0],self.x_max[0],-self.x_max[0],self.x_max[0]))                    
             plt.savefig(self.reconstruct_compare_dir+'/TEST_GROUP')
+            
+            
+            
+            plt.clf()
+            plt.figure()
+            plt.suptitle("Coefficients for test group")
+            density = np.sum(np.asfortranarray(fc.coeffs),axis=2)
+            
+            plt.imshow(np.transpose(np.fliplr(density)),interpolation="Gaussian",aspect='equal')
+            plt.savefig(self.reconstruct_compare_dir+'/coeffs_z')
+            
+            plt.clf()
+            plt.figure()
+            plt.suptitle("Coefficients for test group")
+            density = np.sum(np.asfortranarray(fc.coeffs),axis=1)
+            
+            plt.imshow(np.transpose(np.fliplr(density)),interpolation="Gaussian",aspect='equal')
+            plt.savefig(self.reconstruct_compare_dir+'/coeffs_y')                       
 
+            plt.clf()
+            plt.figure()
+            plt.suptitle("Coefficients for test group")
+            density = np.sum(np.asfortranarray(fc.coeffs),axis=0)
+            
+            plt.imshow(np.transpose(np.fliplr(density)),interpolation="Gaussian",aspect='equal')
+            plt.savefig(self.reconstruct_compare_dir+'/coeffs_x')  
+            
+              
+            plt.clf()
+            plt.figure()
+            plt.suptitle("Integral Factors")
+            plt.xlabel('Distance')
+            plt.ylabel('Basis Order')
+            plt.imshow(np.flipud(np.asfortranarray(fc.ints).T),interpolation="Gaussian", aspect=0.1,extent=(-1.0,1.0,0,24))
+            plt.colorbar()
+            plt.savefig(self.reconstruct_compare_dir+'/ints')  
         
     def test_sphere(self):
         """

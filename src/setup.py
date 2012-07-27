@@ -27,9 +27,12 @@ shapelets = Extension('PyCosmology.shapelets.fort.shapelets',['PyCosmology/shape
                       #libraries = ['fm.o',
                       #             'fmsave.o',
                       #             'fmzm90.o'],
-                      extra_f90_compile_args=['-Wtabs'],
+                      extra_f90_compile_args=['-Wtabs', '-O0'],
                       f2py_options=['--quiet'])
-read_sim = Extension('PyCosmology.sims.fort.read_sim',['PyCosmology/sims/fort/ReadSim.f90'],extra_f90_compile_args=['-Wtabs'],f2py_options=['--quiet'])
+read_sim = Extension('PyCosmology.sims.fort.read_sim',['PyCosmology/sims/fort/ReadSim.f90'],
+                     depends = ['PyCosmology/sims/fort/Auxiliary.f90'],
+                     extra_f90_compile_args=['-Wtabs'],
+                     f2py_options=['--quiet',"skip:","recentre","inertia",'eigorder','genrotate','logbins','jacobi',':'])
 
 if __name__=="__main__":
     
