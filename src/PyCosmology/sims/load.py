@@ -38,37 +38,38 @@ class sims(object):
                 
             self.groups_pos = []
             self.groups_vel = []
+            self.groups_pos_f = []
+            self.groups_vel_f = []
             self.axis_b = []
             self.axis_c = []
             self.axis_d = []
             self.original_group_centres = []
             
-            for i in range(self.n_groups)+[-1]:
-                if not reverse:
-                    self.groups_pos = self.groups_pos + [np.asfortranarray(fsims.pos[:,fsims.group_number == i+1])]
-                    self.groups_vel = self.groups_vel + [np.asfortranarray(fsims.vel[:,fsims.group_number == i+1])]
-                else:
-                    self.groups_pos = self.groups_pos + [np.asfortranarray(fsims.pos[:,fsims.group_number == np.max(fsims.group_number)-i])]
-                    self.groups_vel = self.groups_vel + [np.asfortranarray(fsims.vel[:,fsims.group_number == np.max(fsims.group_number)-i])]
+            for i in range(self.n_groups):
+                group_pos, group_vel = fsims.specify_groups(i+1,fsims.grouplen[i])
+                self.groups_vel = self.groups_vel + [np.asfortranarray(group_vel)]
+                self.groups_pos = self.groups_pos + [np.asfortranarray(group_pos)]
                 
-                self.original_group_centres = self.original_group_centres + [np.array(self.groups_pos[i])[:,0]]
-                if i!= -1: 
-                    fsims.centre(self.groups_pos[i],centring_mode)
-                    fsims.rotate(self.groups_pos[i],np.asfortranarray(self.groups_vel[i]),[0.0,0.0,0.0],0.0)
+                self.original_group_centres = self.original_group_centres + [np.array(group_pos[:,0])]
 
-                    self.axis_b.append(float(fsims.axis_ratio_b))
-                    self.axis_c.append(float(fsims.axis_ratio_c))
-                    self.axis_d.append(float(fsims.axis_ratio_d))
-                
-                #Needs to be fixed for reverse as well.
+                fsims.centre(self.groups_pos[i],centring_mode)
+                fsims.rotate(self.groups_pos[i],np.asfortranarray(self.groups_vel[i]),[0.0,0.0,0.0],0.0)
+
+                self.axis_b.append(float(fsims.axis_ratio_b))
+                self.axis_c.append(float(fsims.axis_ratio_c))
+                self.axis_d.append(float(fsims.axis_ratio_d))
+                 
+                #Locate subgroups.Particles are in no particular order though!
                 self.subgroups_pos = self.subgroups_pos + [[]]
                 indices = list(set(fsims.subgroup_number[fsims.group_number == i+1]))
                 indices.sort(reverse=True)
                 for index in indices:
                     self.subgroups_pos[i] = self.subgroups_pos[i] + [np.array(self.groups_pos[i])[:,fsims.subgroup_number[fsims.group_number == i+1]== index]]
+
    
-   
-   
+            #Check to compare the first group particle by id vs. one that I have here
+            #print "First particle position by id: ", fsims.pos[:,fsims.ids[0]]
+            #print "First particle position in group: ", self.original_group_centres[0]
             #if subgroup_filename:
             ##    fsims.read_subgroupv(subgroup_filename)
             #    self.subgroups_pos_temp = []
@@ -145,6 +146,14 @@ class sims(object):
         except OSError, e:
             if e.errno != errno.EEXIST:
                 raise  
+            
+        self.group_structure_shells_dir = "GroupData/StructureInShells"
+        try:
+            os.makedirs(self.group_structure_shells_dir)
+        except OSError, e:
+            if e.errno != errno.EEXIST:
+                raise  
+            
     def plot_group_pos(self):
         """
         Convenience function for plotting the group positions as density maps all at once.
@@ -183,7 +192,8 @@ class sims(object):
         fig = plt.figure(1, figsize=(5.5,5.5))
         plt.suptitle("Axis ratio scatter for the groups (N = "+str(len(self.axis_b))+')')
 
-
+        plt.xlabel("Second Longest to Longest Axis")
+        plt.ylabel("Shortest to Second Longest Axis")
         from mpl_toolkits.axes_grid1 import make_axes_locatable
     
         # the scatter plot:
@@ -257,15 +267,56 @@ class sims(object):
             
             fof_offset = fof_offset + [fsims.centre_of_mass_offset_fof(group)]
             sphere_offset = sphere_offset + [fsims.centre_of_mass_offset_sphere(np.asfortranarray(self.original_group_centres[i]))]
-        print np.array(fof_offset).shape
-        print np.array(sphere_offset).shape
-        print fof_offset
-        print sphere_offset
         plt.clf()
-        plt.plot(fof_offset,sphere_offset,'bo')
+        plt.title("Centre of Mass Offsets For FoF and Spherical Overdensity Groups")
+        plt.xlabel("FoF Mass Offset, log(Mpc)")
+        plt.ylabel("Spherical Overdensity Offset, log(Mpc)")
+        plt.plot(np.log(fof_offset),np.log(sphere_offset),'bo')
         plt.savefig(self.group_stats_dir+"/Centre_of_Mass_Offsets.png")
         
+    def structure_in_shells(self, bins):
+        """
+        Calculates the ratio of subgroup particles to non-subgroup particles for a shell.
+        """
         
+        #Set up radii
+        average = np.zeros(bins-1)
+        for k,group in enumerate(self.subgroups_pos):
+            end =  (3.0*fsims.grouplen[k]*fsims.massarr[1]/(4.0*np.pi*200.0*27.755))**(1./3.)
+            radii = np.linspace(0.0, end, bins)
         
+            ratio = []
+            rad = []
+            for i,radius in enumerate(radii):
+                if i==len(radii)-1:
+                    continue
+                
+                n_subgroup_particles = 0
+                for j,subgroup in enumerate(group):
+                    if j != len(group)-1:
+                        n_subgroup_particles = n_subgroup_particles + fsims.number_in_shell(radius, radii[i+1],subgroup)
+                    else:
+                        n_background_particles = fsims.number_in_shell(radius, radii[i+1],subgroup)
+                        
+                if n_subgroup_particles == 0  and n_background_particles == 0:
+                    ratio = ratio + [0]
+                else:
+                    ratio = ratio + [float(n_subgroup_particles)/(float(n_background_particles)+float(n_subgroup_particles))]
+                rad = rad + [(radius+radii[i+1])/(2.0*end)]
+            average = average + fsims.grouplen[k]*np.array(ratio)
+            
+            plt.clf()
+            plt.title("Substructure in Shells")
+            plt.xlabel("Radius")
+            plt.ylabel("Structure Fraction")
+            plt.plot(rad,ratio)
+            plt.savefig(self.group_structure_shells_dir+'/group_'+str(k))
         
+        average = average/(self.n_groups*np.sum(fsims.grouplen))
+        plt.clf()
+        plt.title("Substructure in Shells On Average")
+        plt.xlabel("Radius - fraction of Virial Radius")
+        plt.ylabel("Structure Fraction")
+        plt.plot(rad,average)
+        plt.savefig(self.group_structure_shells_dir+'/all_groups')
         

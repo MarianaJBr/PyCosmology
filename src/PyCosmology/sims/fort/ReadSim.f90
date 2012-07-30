@@ -5,7 +5,7 @@ module SimOps
 
 	!Fundamental Parameters. 
 	real(8), parameter		:: pi = 3.141592653589	!Fundamental Constant.
-	real(8), parameter		:: delta_vir = 150.d0	!Critical Overdensity defining virial radius.
+	real(8), parameter		:: delta_vir = 200.d0	!Critical Overdensity defining virial radius.
 	real(8), parameter		:: rho_c = 27.75d0		!Critical Density of the Universe.
 	
 	!Important Properties of the Simulation
@@ -32,6 +32,8 @@ module SimOps
 	!Important Group Properties
 	integer					:: ngroups			!Total number of groups in sim.
 	integer, allocatable	:: group_number(:)	!The group number of each particle (in order of largest to smallest group)
+	integer,allocatable		:: groupoffset(:)	!The offset of each group.
+	integer,allocatable		:: grouplen(:)		!The size of each group
 	integer, allocatable	:: ids(:)			!ID's of all particles IN GROUPS
 	real					:: axis_ratio_b		!2ndAxis/1stAxis of a group
 	real					:: axis_ratio_c		!3rdAxis/1stAxis of a group
@@ -110,9 +112,8 @@ module SimOps
     subroutine find_groups(filename,ids_file)  
 		character(len=*), intent(in)	:: filename		!Group catalogue file
 		character(len=*), intent(in)	:: ids_file 	!Particle ID's of all particles in groups.
-		
-		integer,allocatable	:: grouplen(:)		!The size of each group
-		integer,allocatable	:: groupoffset(:)	!The offset of each group.
+
+
     	integer 			:: k,i				!Iterators
     	integer				:: ntot				!Total number of particles in groups
     	integer				:: group_offset		!The offset from 0 of a particular group in the ID's file.
@@ -129,6 +130,10 @@ module SimOps
     	write(*,'(a,i6,a)') 'Reading ',ngroups,' groups...'
     	
     	!Allocate the main arrays.
+    	if(allocated(grouplen))then
+    		deallocate(grouplen)
+    	end if
+    	
     	allocate(grouplen(ngroups))
     	allocate(groupoffset(ngroups))
     	
@@ -166,37 +171,98 @@ module SimOps
         !The process here is to locate the largest group, and flag all particles
         !belonging to it as belonging to group 1, then find the next largest 
         !group and set them to 2 etc.
-        do k = 1,ngroups
-        	if(loud)then
-        		write(*,*) "Calculating characteristics of group", k
-        	end if
+        !do k = 1,ngroups
+        !	
+        !	!Locate largest group
+        !	offset_pos = maxloc(grouplen)
+        !	group_offset = groupoffset(offset_pos(1))
+        !  	
+        !  	!Specify the particles of this group, returning an array of numbers
+        !  	!corresponding to which group each is in.
+        !  	do i=1,maxval(grouplen)
+        !  	  group_ID = ids(group_offset+i)
+        !  	  group_number(group_ID) = k
+        !  	
+        !  	end do
+        !  	
+        !  	!Set the current group size to negative so the next biggest group
+        !  	!can be found simply.
+        !  	grouplen(offset_pos(1)) = -1
+        !end do
         	
-        	!Locate largest group
-        	offset_pos = maxloc(grouplen)
-        	group_offset = groupoffset(offset_pos(1))
-          	if (loud)then
-          		  write(*,*) "Group Size: ", maxval(grouplen)
-          	end if
-          	
-          	if (loud) then
-          		  write(*,*) "Specifying group particles"
-          	end if
-          	
-          	!Specify the particles of this group, returning an array of numbers
-          	!corresponding to which group each is in.
-          	do i=1,maxval(grouplen)
-          	  group_ID = ids(group_offset+i)
-          	  
-          	  group_number(group_ID) = k
-          	
-          	end do
-          	
-          	!Set the current group size to negative so the next biggest group
-          	!can be found simply.
-          	grouplen(offset_pos(1)) = -1
+        do k=1,ngroups
+        	do i=1,grouplen(k)
+        		group_ID = ids(groupoffset(k)+i)
+        		group_number(group_ID) = k
+        	end do
         end do
       end subroutine
- 
+
+  !----------------------------------------------------------------------
+ 	  ! specify_groups - determine the actual particle pos and vel for a group.
+  !----------------------------------------------------------------------   
+  	subroutine specify_groups(g_num,n,g_pos,g_vel)
+  		integer, intent(in)		:: n 						!Size of group
+  		integer, intent(in)		:: g_num					!The index of the group being specified
+  		real, intent(out)		:: g_pos(3,n)				!The positions of the group
+  		real, intent(out)		:: g_vel(3,n)				!The velocities of the group
+
+  		integer					:: i,k						!Iterator
+  		integer					:: group_ID					!The ID of a particular member of a group.
+  		
+  		do i = 1,n
+        	group_ID = ids(groupoffset(g_num)+i)
+        	g_pos(:,i) = pos(:,group_ID)
+        	g_vel(:,i) = vel(:,group_ID)
+  			!if(i==1)then
+  			!	write(*,*) "First particle in group pos:", g_pos(:,i)
+  			!end if
+  		end do
+  	end subroutine
+  !----------------------------------------------------------------------
+ 	  ! specify_group_pos - determine the actual particle pos for a group.
+  !----------------------------------------------------------------------   
+  	subroutine specify_group_pos(g_num,n,g_pos)
+  		integer, intent(in)		:: n 						!Size of group
+  		integer, intent(in)		:: g_num					!The index of the group being specified
+  		real, intent(out)		:: g_pos(3,n)				!The positions of the group
+
+  		integer					:: i,k						!Iterator
+  		
+  		do i = 1,n
+  			do k=1,npart(2)
+  				if(group_number(k) == g_num)then
+  					g_pos(:,i) = pos(:,k)
+  					
+  					exit
+  				end if
+  			end do
+  			if(i==1)then
+  				write(*,*) "First particle in group pos:", g_pos(:,i)
+  			end if
+  		end do
+  	end subroutine
+  !----------------------------------------------------------------------
+ 	  ! specify_group_vel - determine the actual particle vel for a group.
+  !----------------------------------------------------------------------   
+  	subroutine specify_group_vel(g_num,n,g_vel)
+  		integer, intent(in)		:: n 						!Size of group
+  		integer, intent(in)		:: g_num					!The index of the group being specified
+  		real, intent(out)		:: g_vel(3,n)				!The velocities of the group
+  		
+  		integer					:: i,k						!Iterator
+  		
+  		do i = 1,n
+  			do k=1,npart(2)
+  				if(group_number(k) == g_num)then
+  					g_vel(:,i) = vel(:,k)
+  					
+  					exit
+  				end if
+  			end do
+
+  		end do
+  	end subroutine	
   !----------------------------------------------------------------------
  	  ! centre - change co-ords of a group to its centre
   !----------------------------------------------------------------------        
@@ -411,8 +477,6 @@ module SimOps
         
 		!Find the virial radius.
 		r_vir = (3.d0*n*massarr(2)/(4.d0*pi*delta_vir*rho_c))**(1./3.)
-		write(*,*) "Virial Radius FoF: ", r_vir
-		write(*,*) "Size of FoF group: ", n
 		mass_offset = ((most_bound(1)-c_o_m(1))**2+&
 					   &(most_bound(2)-c_o_m(2))**2+&
 					   &(most_bound(3)-c_o_m(3))**2)/r_vir
@@ -435,7 +499,6 @@ module SimOps
   		integer				::particles_in_group	!The size of the spherical group.
   		real(8)				::dens			!Density of sphere within current particle
 
-        write(*,*) "Most bound particle at", most_bound
         !ReCentre the whole simulation
         call ReCentre(pos,BoxSize,most_bound)
         
@@ -451,8 +514,7 @@ module SimOps
         
         !Sort the radii in ascending order, whilst ordering the indices in the same manner.
         call sort2(npart(2),radius,index_array)
-        
-        write(*,*) "Smallest Radius (Centre Particle)", radius(1)
+       
         
         !For each particle, estimate the enclosed density, checking whether
         !it is still greater than delta_vir*rho_c.
@@ -465,8 +527,6 @@ module SimOps
         		exit
         	end if
         end do
-        write(*,*) "Particles in Spherical Group: ", particles_in_group
-        write(*,*) "Virial Radius: ", r_vir
         
 		!Find the centre of mass of the group.      	
 		c_o_m(:) = 0.000
@@ -563,8 +623,31 @@ module SimOps
       subparent = parent_groups
     end subroutine
 
-
-  
+  !----------------------------------------------------------------------
+ 	  ! number_in_shell - finds how many cartesian positions are in a shell
+  !----------------------------------------------------------------------
+  	  subroutine number_in_shell(inner_radius, outer_radius, n_objects,g_pos, N)
+  	  	real(8), intent(in)		:: inner_radius		!Radius of inner edge of shell
+  	  	real(8), intent(in)		:: outer_radius		!Radius of outer edge of shell
+  	  	integer, intent(in)		:: n_objects		!Number of objects
+  	  	real, intent(in)		:: g_pos(3,n_objects)!Cartesian positions of objects
+  	  	
+  	  	integer, intent(out)	:: N				!Number of objects in the shell
+  	  	
+  	  	real(8)					:: ir2, or2, radius
+  	  	integer					:: i				!Iterator
+  	  	
+  	  	ir2 = inner_radius**2
+  	  	or2 = outer_radius**2
+  	  	N=0
+  	  	do i=1,n_objects
+  	  		radius = g_pos(1,i)**2 + g_pos(2,i)**2 + g_pos(3,i)**2	
+  	  		if(radius.GT.ir2 .AND. radius.LT.or2)then
+  	  			N = N+1
+  	  		end if
+  	  	end do
+  	  	
+  	  end subroutine
    
     
 end module

@@ -18,6 +18,8 @@ if __name__ == '__main__':
         sim.plot_group_pos()
     if plot_vel_disp:
         sim.plot_velocity_disp()
+    if plot_shell_structure:
+        sim.structure_in_shells(radial_bins)
     
     if plot_axis_ratios:
         sim.AxisRatioDistribution()

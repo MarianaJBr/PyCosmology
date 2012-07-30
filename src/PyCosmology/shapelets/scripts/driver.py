@@ -11,7 +11,7 @@ if __name__ == '__main__':
     
     initial = time.time()
     sh = shops(config.sim_file,config.groups_file,config.ids_file,config.n_groups,config.reverse,config.bins,config.reconstruct,
-               config.test,config.basis_test,config.n_test,config.int_test, config.x_max, config.bases,config.subgroup_file)
+               config.test,config.basis_test,config.n_test,config.int_test, config.x_max, config.bases)
     
     if not config.basis_test:      
         sub_initial = time.time()
