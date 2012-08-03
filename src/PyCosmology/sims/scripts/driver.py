@@ -25,3 +25,5 @@ if __name__ == '__main__':
         sim.AxisRatioDistribution()
     if plot_mass_offset:
         sim.Centre_of_mass_offsets()
+    if plot_non_param:
+        sim.non_parametric_shell_structure(n_radial_bins,n_angles,nside)

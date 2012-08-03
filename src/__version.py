@@ -1,2 +1,2 @@
-version_info = [0, 2, 8]
-version = 0.2.8
+version_info = [0, 4, 0]
+version = 0.4.0

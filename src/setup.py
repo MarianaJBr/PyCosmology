@@ -5,9 +5,9 @@ Created on Jun 11, 2012
 '''
 
 from numpy.distutils.core import setup,Extension
+import sys
 
-
-version_info = [0,2,8]
+version_info = [0,4,0]
 version = '.'.join([str(i) for i in version_info])
 def generate_version_py():
     fid = open("__version.py",'w')
@@ -19,20 +19,18 @@ def generate_version_py():
         
 generate_version_py()
 
+healpix_library_path = "/Users/Steven/Downloads/Healpix_2.20a"
+
 shapelets = Extension('PyCosmology.shapelets.fort.shapelets',['PyCosmology/shapelets/fort/find_coeffs.f90'],
-                      #include_dirs = ['/Users/Steven/Documents/PhD/FMLIB'],
-                      #library_dirs = ['/Users/Steven/Documents/PhD/FMLIB',
-                      #             '/Users/Steven/Documents/PhD/FMLIB',
-                      #             'PyCosmology/shapelets/fort'],
-                      #libraries = ['fm.o',
-                      #             'fmsave.o',
-                      #             'fmzm90.o'],
                       extra_f90_compile_args=['-Wtabs', '-O0'],
                       f2py_options=['--quiet'])
 read_sim = Extension('PyCosmology.sims.fort.read_sim',['PyCosmology/sims/fort/ReadSim.f90'],
                      depends = ['PyCosmology/sims/fort/Auxiliary.f90'],
                      extra_f90_compile_args=['-Wtabs'],
-                     f2py_options=['--quiet',"skip:","recentre","inertia",'eigorder','genrotate','logbins','jacobi',':'])
+                     f2py_options=['--quiet',"skip:","recentre","inertia",'eigorder','genrotate','logbins','jacobi',':'],
+                     library_dirs = [healpix_library_path+'/lib'],
+                     libraries = ["healpix"],
+                     include_dirs = [healpix_library_path+'/include'])
 
 if __name__=="__main__":
     
@@ -43,5 +41,6 @@ if __name__=="__main__":
           description = 'Bits-and-bobs cosmology project.',
           url = 'doesnt.have.one.yet.com',
           ext_modules = [shapelets,read_sim],
-          packages = ['PyCosmology','PyCosmology.shapelets','PyCosmology.sims','PyCosmology.structure','PyCosmology.shapelets.fort','PyCosmology.sims.fort']
+          packages = ['PyCosmology','PyCosmology.shapelets','PyCosmology.sims','PyCosmology.structure','PyCosmology.shapelets.fort','PyCosmology.sims.fort'],
+          data_files = [("PyCosmology/data",["PyCosmology/data/healpix.dat"])]
     )

@@ -810,9 +810,7 @@ module SimOps
     				variance(k,h) = variance(k,h) + (density(i) - mean)**2
     			end do
     			variance(k,h) = variance(k,h)/n_pix
-    			!write(*,*) "Variance:", variance(k,h)
-    			!write(*,*) "Densities:", density
-    			write(*,*)
+
     			!square_of_mean = (sum(numbers_of_objects)/&
     			!					&size(numbers_of_objects))**2
     			!mean_of_square = sum(numbers_of_objects**2)/&

@@ -19,7 +19,9 @@ class sims(object):
         """
         Imports the simulation and detects groups and subgroups if specified.
         """
+        #Set the FORTRAN module parameter whether to write out extra information.
         fsims.loud = loud
+        
         # readsim reads in the simulation and defines fsims.pos and fsims.vel amongst others.
         fsims.readsim(filename)
 
@@ -27,15 +29,19 @@ class sims(object):
         # which contains the number of the group for each particle.  
         if group_filename:
             fsims.find_groups(group_filename,ids_filename)
+            
+            # Modify the number of groups to work with in the stats part.
             if n_groups is 'all':
                 self.n_groups = fsims.ngroups
             else:
                 self.n_groups = n_groups
-                
+             
+            #If a subgroup filename was given, read in all the subgroups, saving a flagged subgroup number to each particle.   
             if subgroup_filename:
                 fsims.read_subgroupv(subgroup_filename)
                 self.subgroups_pos = []
-                
+            
+            #Initialize all variables for later use.    
             self.groups_pos = []
             self.groups_vel = []
             self.groups_pos_f = []
@@ -46,58 +52,36 @@ class sims(object):
             self.original_group_centres = []
             
             for i in range(self.n_groups):
+                #Save the particles to their respective groups
                 group_pos, group_vel = fsims.specify_groups(i+1,fsims.grouplen[i])
                 self.groups_vel = self.groups_vel + [np.asfortranarray(group_vel)]
                 self.groups_pos = self.groups_pos + [np.asfortranarray(group_pos)]
                 
+                #Save the original group centre (the first particle position of each group)
                 self.original_group_centres = self.original_group_centres + [np.array(group_pos[:,0])]
 
+                # Recentre each group around its first particle
                 fsims.centre(self.groups_pos[i],centring_mode)
+                
+                #Rotate each group so its longest axis is the x-axis.
                 fsims.rotate(self.groups_pos[i],np.asfortranarray(self.groups_vel[i]),[0.0,0.0,0.0],0.0)
 
+                #Save axis ratios for further use.
                 self.axis_b.append(float(fsims.axis_ratio_b))
                 self.axis_c.append(float(fsims.axis_ratio_c))
                 self.axis_d.append(float(fsims.axis_ratio_d))
                  
                 #Locate subgroups.Particles are in no particular order though!
                 self.subgroups_pos = self.subgroups_pos + [[]]
+                
+                #Arrange the subgroup numbers contained in each group in descending order so that non-grouped particles are last.
                 indices = list(set(fsims.subgroup_number[fsims.group_number == i+1]))
                 indices.sort(reverse=True)
                 for index in indices:
                     self.subgroups_pos[i] = self.subgroups_pos[i] + [np.array(self.groups_pos[i])[:,fsims.subgroup_number[fsims.group_number == i+1]== index]]
 
-   
-            #Check to compare the first group particle by id vs. one that I have here
-            #print "First particle position by id: ", fsims.pos[:,fsims.ids[0]]
-            #print "First particle position in group: ", self.original_group_centres[0]
-            #if subgroup_filename:
-            ##    fsims.read_subgroupv(subgroup_filename)
-            #    self.subgroups_pos_temp = []
-            #    self.subgroups_vel_temp = []
-            #    for i in range(fsims.nsub):
-            #        if not reverse:
-            #            self.subgroups_pos_temp = self.subgroups_pos_temp + [fsims.pos[:,fsims.subgroup_number == i+1]]
-            #            self.subgroups_vel_temp = self.subgroups_vel_temp + [fsims.vel[:,fsims.subgroup_number == i+1]]
-            #    
-            #    self.subgroups_pos = []
-            #    for i in range(self.n_groups):
-            #        self.subgroups_pos = self.subgroups_pos + [[]]   
-            #    
-            #    for i in range(fsims.nsub):
-            #        if fsims.subparent[i]-1 > self.n_groups-1:
-            #            continue
-            #        
-            #        self.subgroups_pos[fsims.subparent[i]-1] = self.subgroups_pos[fsims.subparent[i]-1] + [self.subgroups_pos_temp[i]]
-            #        
-            #    for i in range(self.n_groups):
-            #        for j in range(len(self.subgroups_pos[i])):
-            #            print self.original_group_centres[i]
-            #            subgroup = np.asfortranarray(self.subgroups_pos[i][j])
-            #            fsims.centre(subgroup,0,def_centre=self.original_group_centres[i])
-            #            self.subgroups_pos[i][j] = subgroup
-            #else:
-            #    self.subgroups_pos = None
-                
+
+        #Make the directory structure that files will be saved to.        
         self.make_directories(filename)
         
     def make_directories(self,filename):
@@ -153,17 +137,25 @@ class sims(object):
         except OSError, e:
             if e.errno != errno.EEXIST:
                 raise  
-            
+        self.nonparam = "GroupData/StructureInShellsNonParam"
+        try:
+            os.makedirs(self.nonparam)
+        except OSError, e:
+            if e.errno != errno.EEXIST:
+                raise 
+                       
     def plot_group_pos(self):
         """
         Convenience function for plotting the group positions as density maps all at once.
         """
         print "Plotting Group Positions"
         for i,group in enumerate(self.groups_pos):
+            #If there are subgroups, we plot the subgroups as overlays with different colours.
             if self.subgroups_pos:
                 plotting.SpatialPlot(group[0,:],group[1,:],self.group_density_dir+'/group_'+str(i),smoothing='dot',subgroups=self.subgroups_pos[i])
             else:
                 plotting.SpatialPlot(group[0,:],group[1,:],self.group_density_dir+'/group_'+str(i),smoothing='dot')
+                
     def plot_group_density_profile(self):
         """
         Convenience function for plotting the density profiles for all maintained groups.
@@ -258,10 +250,11 @@ class sims(object):
         Calculates the distribution of centre of mass offsets (not right yet)
         """
         print "Plotting Centre of Mass Offsets"
-        #for group in self.groups_pos:
+
         fof_offset = []
         sphere_offset = []   
         for i,group in enumerate(self.groups_pos):
+            #Don't worry about the last group, which will be the ungrouped particles.
             if i == len(self.groups_pos)-1:
                 continue
             
@@ -278,23 +271,28 @@ class sims(object):
         """
         Calculates the ratio of subgroup particles to non-subgroup particles for a shell.
         """
+        print "Calculating Ratio of Subgroup Particles to Background Particles in Subshells of Groups"
         
-        #Set up radii
+        
         average = np.zeros(bins-1)
         for k,group in enumerate(self.subgroups_pos):
+            #Set up the radii
             end =  (3.0*fsims.grouplen[k]*fsims.massarr[1]/(4.0*np.pi*200.0*27.755))**(1./3.)
             radii = np.linspace(0.0, end, bins)
         
             ratio = []
             rad = []
             for i,radius in enumerate(radii):
+                #We have n-1 bins where n is the bin edge number.
                 if i==len(radii)-1:
                     continue
                 
                 n_subgroup_particles = 0
                 for j,subgroup in enumerate(group):
+                    #Subgroup particles are in the first n-1 subgroups
                     if j != len(group)-1:
                         n_subgroup_particles = n_subgroup_particles + fsims.number_in_shell(radius, radii[i+1],subgroup)
+                    #Background particles are in the last 'subgroup'
                     else:
                         n_background_particles = fsims.number_in_shell(radius, radii[i+1],subgroup)
                         
@@ -312,6 +310,7 @@ class sims(object):
             plt.plot(rad,ratio)
             plt.savefig(self.group_structure_shells_dir+'/group_'+str(k))
         
+        #Also plot an average, weighted by number of particles in groups.
         average = average/(self.n_groups*np.sum(fsims.grouplen))
         plt.clf()
         plt.title("Substructure in Shells On Average")
@@ -320,3 +319,44 @@ class sims(object):
         plt.plot(rad,average)
         plt.savefig(self.group_structure_shells_dir+'/all_groups')
         
+    def non_parametric_shell_structure(self,n_radial_bins,n_angles,nside):
+        """
+        Does a non-parametric test for structure in radial shells of groups and clusters.
+        """
+        print "Performing Non-Parametric Variance-Based Test For Structure In Groups"
+        
+        for i,group in enumerate(self.groups_pos):
+            variances = fsims.structure_test_2(group,n_radial_bins, n_angles,nside)
+            radial_bins = np.linspace(0.5/n_radial_bins, 1.0 -0.5/n_radial_bins, n_radial_bins )
+            angles = np.linspace(np.pi/(2*n_angles),np.pi/2,n_angles)
+            
+            plt.clf()
+            plt.figure(figsize=(10.0,20.0))
+            plt.subplots(nrows=3, ncols=1)
+            plt.subplots_adjust(top=0.9, bottom = 0.1, hspace = 0.6)
+            
+            plt.subplot(311)
+            plt.title("Log Density Variance in Radial Shells on Varying Scales")
+            plt.imshow(np.log10(variances),interpolation='Gaussian', aspect = float(n_angles)/float(n_radial_bins), 
+                       extent=(angles[0],angles[-1],radial_bins[0],radial_bins[-1]) )
+            plt.xlabel("Angle Sizes")
+            plt.ylabel("Radial Bins")
+            plt.colorbar()
+
+            plt.subplot(312)
+            plt.title("Density Variance on Varying Scales Averaged Over Shells")
+            shell_av_var = np.sum(variances,axis=0)/n_radial_bins
+            plt.plot(angles,np.log10(shell_av_var), 'b-')
+            plt.xlabel("Angle Sizes")
+            plt.ylabel("Log of Density Variance")
+            
+            plt.subplot(313)
+            plt.title("Density Variance in Radial Shells Average Over Scales")
+            scale_av_var = np.sum(variances,axis=1)/n_angles
+            plt.plot(radial_bins,np.log10(scale_av_var),'b-')
+            plt.xlabel("Centre of Radial Shell as Fraction of Virial Radius")
+            plt.ylabel("Log of Density Variance")
+            
+            plt.savefig(self.nonparam+"/group_"+str(i))
+            
+            
