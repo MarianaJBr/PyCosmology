@@ -9,7 +9,7 @@ group_filename = '/Users/Steven/Documents/PhD/Simulations/Snap_130/groups/groups
 ids_filename = '/Users/Steven/Documents/PhD/Simulations/Snap_130/groups/groups_130.pos.ids'
 subgroup_file = "/Users/Steven/Documents/PhD/Simulations/Snap_130/groups/groups_130.subcat.for"
 
-n_groups = 10
+n_groups = 1
 reverse = False #DONT USE REVERSE IT DOESN"T WORK
 centring_mode = 1
 

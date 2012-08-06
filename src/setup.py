@@ -27,11 +27,13 @@ shapelets = Extension('PyCosmology.shapelets.fort.shapelets',['PyCosmology/shape
 read_sim = Extension('PyCosmology.sims.fort.read_sim',['PyCosmology/sims/fort/ReadSim.f90'],
                      depends = ['PyCosmology/sims/fort/Auxiliary.f90'],
                      extra_f90_compile_args=['-Wtabs'],
-                     f2py_options=['--quiet',"skip:","recentre","inertia",'eigorder','genrotate','logbins','jacobi',':'],
+                     f2py_options=['--quiet',"skip:","recentre","inertia",'eigorder','genrotate','logbins','jacobi',':'])
+groupstructure = Extension('PyCosmology.sims.fort.groupstructure',['PyCosmology/sims/fort/GroupStructureOMP.f90'],
+                     extra_f90_compile_args=['-Wtabs','-fopenmp'],
+                     f2py_options=['--quiet'],
                      library_dirs = [healpix_library_path+'/lib'],
-                     libraries = ["healpix"],
+                     libraries = ["healpix","gomp"],
                      include_dirs = [healpix_library_path+'/include'])
-
 if __name__=="__main__":
     
     setup(name = 'PyCosmology',
@@ -40,7 +42,7 @@ if __name__=="__main__":
           author_email = 'steven.jeanette.m@gmail.com',
           description = 'Bits-and-bobs cosmology project.',
           url = 'doesnt.have.one.yet.com',
-          ext_modules = [shapelets,read_sim],
+          ext_modules = [shapelets,read_sim,groupstructure],
           packages = ['PyCosmology','PyCosmology.shapelets','PyCosmology.sims','PyCosmology.structure','PyCosmology.shapelets.fort','PyCosmology.sims.fort'],
           data_files = [("PyCosmology/data",["PyCosmology/data/healpix.dat"])]
     )

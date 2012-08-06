@@ -6,6 +6,7 @@ Created on May 7, 2012
 import numpy as np
 
 from PyCosmology.sims.fort.read_sim import simops as fsims
+from PyCosmology.sims.fort.groupstructure import groupstructure as gs
 import plotting
 
 import os, errno
@@ -326,37 +327,68 @@ class sims(object):
         print "Performing Non-Parametric Variance-Based Test For Structure In Groups"
         
         for i,group in enumerate(self.groups_pos):
-            variances = fsims.structure_test_2(group,n_radial_bins, n_angles,nside)
-            radial_bins = np.linspace(0.5/n_radial_bins, 1.0 -0.5/n_radial_bins, n_radial_bins )
-            angles = np.linspace(np.pi/(2*n_angles),np.pi/2,n_angles)
-            
+            variances, poisson, rads_c, rads, angles_c = gs.structure_test(group,n_radial_bins, n_angles,nside)
+
             plt.clf()
             plt.figure(figsize=(10.0,20.0))
             plt.subplots(nrows=3, ncols=1)
             plt.subplots_adjust(top=0.9, bottom = 0.1, hspace = 0.6)
+            plt.suptitle("Varying Radius to Keep Constant Volume")
             
             plt.subplot(311)
-            plt.title("Log Density Variance in Radial Shells on Varying Scales")
-            plt.imshow(np.log10(variances),interpolation='Gaussian', aspect = float(n_angles)/float(n_radial_bins), 
-                       extent=(angles[0],angles[-1],radial_bins[0],radial_bins[-1]) )
+            plt.title("Log Density Variance in Radial Shells on Varying Scales ")
+            plt.imshow(np.log10(variances[1,:,:]),interpolation='Gaussian', aspect = float(n_angles)/float(n_radial_bins) )
             plt.xlabel("Angle Sizes")
-            plt.ylabel("Radial Bins")
+            plt.ylabel("Radial Bins (Varied non-linearly)")
             plt.colorbar()
 
-            plt.subplot(312)
+            plt.subplot(313)
             plt.title("Density Variance on Varying Scales Averaged Over Shells")
-            shell_av_var = np.sum(variances,axis=0)/n_radial_bins
-            plt.plot(angles,np.log10(shell_av_var), 'b-')
+            shell_av_var = np.sum(variances[1,:,:],axis=0)/n_radial_bins
+            shell_av_pos = np.sum(poisson[1,:,:],axis=0)/n_radial_bins
+            plt.plot(angles_c,np.log10(shell_av_var), 'b-')
+            plt.plot(angles_c,np.log10(shell_av_pos), 'g-')
             plt.xlabel("Angle Sizes")
             plt.ylabel("Log of Density Variance")
-            
-            plt.subplot(313)
+            for rbin in range(n_radial_bins):
+                plt.plot(angles_c,np.log10(variances[1,rbin,:]),'m-')
+
+            plt.subplot(312)
             plt.title("Density Variance in Radial Shells Average Over Scales")
-            scale_av_var = np.sum(variances,axis=1)/n_angles
-            plt.plot(radial_bins,np.log10(scale_av_var),'b-')
+            scale_av_var = np.sum(variances[1,:,:],axis=1)/n_angles
+            scale_av_pos = np.sum(poisson[1,:,:],axis=1)/n_angles
+            plt.plot(rads,np.log10(scale_av_var),'b-')
+            plt.plot(rads,np.log10(scale_av_pos),'g-')
             plt.xlabel("Centre of Radial Shell as Fraction of Virial Radius")
             plt.ylabel("Log of Density Variance")
+            for angle in range(n_angles):
+                plt.plot(rads,np.log10(variances[1,:,angle]),'m-')
+                
+            plt.savefig(self.nonparam+"/group_"+str(i)+'_varRadius')
             
-            plt.savefig(self.nonparam+"/group_"+str(i))
+            plt.clf()
+            plt.figure(figsize=(10.0,20.0))
+            plt.subplots(nrows=2, ncols=1)
+            plt.subplots_adjust(top=0.9, bottom = 0.1, hspace = 0.6)
+            plt.suptitle("Varying Angles to Keep Constant Volume")
             
+            plt.subplot(211)
+            plt.title("Log Density Variance in Radial Shells on Varying Scales ")
+            plt.imshow(np.log10(variances[0,:,:]),interpolation='Gaussian', aspect = float(n_angles)/float(n_radial_bins))
+            plt.xlabel("Angle Sizes (Varied Non-Linearly")
+            plt.ylabel("Radial Bins")
+            plt.colorbar()
+            
+            plt.subplot(212)
+            plt.title("Density Variance in Radial Shells Average Over Scales")
+            scale_av_var = np.sum(variances[0,:,:],axis=1)/n_angles
+            scale_av_pos = np.sum(poisson[0,:,:],axis=1)/n_angles
+            plt.plot(rads_c,np.log10(scale_av_var),'b-')
+            plt.plot(rads_c,np.log10(scale_av_pos),'g-')
+            plt.xlabel("Centre of Radial Shell as Fraction of Virial Radius")
+            plt.ylabel("Log of Density Variance")
+            for angle in range(n_angles):
+                plt.plot(rads_c,np.log10(variances[0,:,angle]),'m-')
+                
+            plt.savefig(self.nonparam+"/group_"+str(i)+'_varAngle')
             
